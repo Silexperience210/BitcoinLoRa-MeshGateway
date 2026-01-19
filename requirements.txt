@@ -1,0 +1,5 @@
+meshtastic>=2.0.0
+pypubsub>=4.0.3
+pyserial>=3.5
+requests>=2.28.0
+pysocks>=1.7.1
