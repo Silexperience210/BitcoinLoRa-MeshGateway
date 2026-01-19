@@ -244,9 +244,9 @@ MIT License - see [LICENSE](LICENSE) file.
 
 If this project helps you, consider supporting development:
 
-**Bitcoin:** `bc1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` *(Add your address)*
+**Bitcoin:** bc1qva34vcnefrlde23puratcdyg3gvyd0xq70kutw
 
-**Lightning:** `lnurl1xxxxxxxxxxxxx` *(Add your LNURL)*
+**Lightning:** silexperience@getalby.com 
 
 ---
 
