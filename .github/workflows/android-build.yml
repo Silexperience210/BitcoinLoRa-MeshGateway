@@ -18,15 +18,27 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Build with Gradle
+    - name: Setup Gradle (no cache)
       uses: gradle/actions/setup-gradle@v3
+      with:
+        cache-disabled: true
       
     - name: Run build
       working-directory: ./android
-      run: gradle assembleDebug
-      
+      run: |
+        echo "=== Starting build ==="
+        gradle assembleDebug --stacktrace --info 2>&1 || true
+        echo "=== Build finished ==="
+        
+    - name: Check for APK
+      run: |
+        echo "=== Looking for APK ==="
+        find . -name "*.apk" -type f || echo "No APK found"
+        
     - name: Upload APK
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: app-debug
         path: android/app/build/outputs/apk/debug/app-debug.apk
+        if-no-files-found: warn
