@@ -476,9 +476,9 @@ class MainActivity : AppCompatActivity() {
         meshPacket.write(0x30)  // (6 << 3) | 0 = 0x30
         meshPacket.write(0x01)  // true
         
-        // hop_limit = 3 - field 11, varint
+        // hop_limit = 6 - field 11, varint
         meshPacket.write(0x58)  // (11 << 3) | 0 = 0x58
-        meshPacket.write(0x03)  // value = 3
+        meshPacket.write(0x06)  // value = 6
         
         val meshPacketBytes = meshPacket.toByteArray()
 
