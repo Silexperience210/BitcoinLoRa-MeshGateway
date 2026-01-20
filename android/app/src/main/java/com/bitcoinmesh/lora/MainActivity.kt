@@ -558,7 +558,18 @@ class MainActivity : AppCompatActivity() {
         writeVarint(toRadio, meshPacketBytes.size)
         toRadio.write(meshPacketBytes)
 
-        return toRadio.toByteArray()
+        val protobufData = toRadio.toByteArray()
+        
+        // Add Meshtastic BLE framing header
+        // Format: [0x94] [0xC3] [len_low] [len_high] [protobuf...]
+        val framedPacket = ByteArrayOutputStream()
+        framedPacket.write(0x94)  // Magic byte 1
+        framedPacket.write(0xC3.toInt())  // Magic byte 2
+        framedPacket.write(protobufData.size and 0xFF)  // Length low byte
+        framedPacket.write((protobufData.size shr 8) and 0xFF)  // Length high byte
+        framedPacket.write(protobufData)
+
+        return framedPacket.toByteArray()
     }
 
     private fun writeVarint(stream: ByteArrayOutputStream, value: Int) {
