@@ -111,6 +111,7 @@ class BitcoinMeshGateway:
         self.interface = None
         self.connected = False
         self.pending_txs = {}  # tx_id -> PendingTransaction
+        self.text_buffers = {}  # sender -> {"parts": [], "last_time": timestamp}
         self.tx_history = []
         self.tx_count = 0
         self.tor_enabled = False
@@ -446,10 +447,11 @@ class BitcoinMeshGateway:
         try:
             decoded = packet.get("decoded", {})
             portnum = decoded.get("portnum")
+            sender = packet.get("fromId", "unknown")
             
+            # Mode PRIVATE_APP - protocole chunké BitcoinTx
             if portnum == "PRIVATE_APP":
                 payload = decoded.get("payload", b"")
-                sender = packet.get("fromId", "unknown")
                 
                 if len(payload) > 0:
                     msg_type = payload[0]
@@ -460,9 +462,124 @@ class BitcoinMeshGateway:
                         self.handle_tx_chunk(payload, sender)
                     elif msg_type == BTX_MSG_TX_END:
                         self.handle_tx_end(payload, sender)
+            
+            # Mode TEXT_MESSAGE - accepter aussi les messages texte (pour app smartphone)
+            elif portnum == "TEXT_MESSAGE_APP":
+                text = decoded.get("text", "")
+                if text:
+                    self.handle_text_message(text, sender)
                         
         except Exception as e:
             self.log(f"Erreur parsing mesh: {e}", "error")
+    
+    def handle_text_message(self, text, sender):
+        """Traite un message texte - vérifie si c'est une transaction Bitcoin (supporte multi-messages)"""
+        text = text.strip()
+        
+        # Ignorer les messages vides
+        if len(text) < 5:
+            return
+            
+        # Nettoyer le texte (enlever espaces, 0x, etc.)
+        clean_hex = text.replace(" ", "").replace("0x", "").replace("\n", "").replace("\r", "")
+        
+        # Vérifier que c'est bien du hex
+        if not all(c in '0123456789abcdefABCDEF' for c in clean_hex):
+            self.log(f"📨 Message texte de {sender}: {text[:50]}...", "info")
+            return
+        
+        # C'est du hex! Ajouter au buffer de ce sender
+        if sender not in self.text_buffers:
+            self.text_buffers[sender] = {"parts": [], "last_time": time.time()}
+        
+        buffer = self.text_buffers[sender]
+        buffer["parts"].append(clean_hex)
+        buffer["last_time"] = time.time()
+        
+        # Assembler toutes les parties
+        full_hex = "".join(buffer["parts"])
+        
+        self.log(f"📦 Partie {len(buffer['parts'])} reçue de {sender} ({len(clean_hex)} chars)", "info")
+        self.log(f"   Total accumulé: {len(full_hex)} chars ({len(full_hex)//2} octets)", "info")
+        
+        # Vérifier si c'est une transaction Bitcoin complète
+        # Une TX commence par version (01 ou 02) et doit avoir une longueur paire
+        if len(full_hex) >= 120 and len(full_hex) % 2 == 0:
+            if full_hex.startswith('01') or full_hex.startswith('02'):
+                # Essayer de valider la structure
+                if self.looks_like_complete_tx(full_hex):
+                    self.log(f"✅ TX Bitcoin complète détectée! ({len(buffer['parts'])} parties)", "success")
+                    
+                    # Vider le buffer
+                    del self.text_buffers[sender]
+                    
+                    # Broadcaster
+                    self.broadcast_text_transaction(full_hex, sender)
+                else:
+                    self.log(f"   ⏳ En attente de plus de données...", "warning")
+    
+    def looks_like_complete_tx(self, tx_hex):
+        """Vérifie basiquement si la TX semble complète"""
+        try:
+            tx_bytes = bytes.fromhex(tx_hex)
+            
+            # Une TX doit faire au moins 60 bytes
+            if len(tx_bytes) < 60:
+                return False
+            
+            # Version (4 bytes) - doit être 1 ou 2
+            version = int.from_bytes(tx_bytes[0:4], 'little')
+            if version not in [1, 2]:
+                return False
+            
+            # Vérifier le locktime à la fin (4 derniers bytes)
+            # Le locktime est généralement 0 ou une valeur de bloc/timestamp
+            locktime = int.from_bytes(tx_bytes[-4:], 'little')
+            
+            # Locktime 0 ou valeur raisonnable (< 2^31)
+            if locktime > 2147483647:
+                return False
+            
+            # Semble valide!
+            return True
+            
+        except Exception:
+            return False
+    
+    def broadcast_text_transaction(self, tx_hex, sender):
+        """Broadcast une transaction reçue par message texte"""
+        self.tx_count += 1
+        
+        # Ajouter à l'historique
+        tree_id = self.tx_tree.insert("", 0, values=(
+            time.strftime("%H:%M:%S"),
+            f"TXT",
+            f"{len(tx_hex)//2}B",
+            sender[:8] + "...",
+            "⏳ Broadcast..."
+        ))
+        
+        # Broadcast en arrière-plan
+        def do_broadcast():
+            try:
+                api_name = self.api_var.get()
+                api_config = BITCOIN_APIS.get(api_name, {})
+                
+                if api_config.get("rpc"):
+                    btc_txid = self._broadcast_rpc(tx_hex, api_config)
+                else:
+                    btc_txid = self._broadcast_api(tx_hex, api_config)
+                
+                self.log(f"🚀 TX broadcastée! TXID: {btc_txid}", "success")
+                self.root.after(0, lambda: self.tx_tree.set(tree_id, "status", f"✅ {btc_txid[:16]}..."))
+                
+            except Exception as e:
+                self.log(f"❌ Échec broadcast: {e}", "error")
+                self.root.after(0, lambda: self.tx_tree.set(tree_id, "status", f"❌ {str(e)[:30]}"))
+            
+            self.update_stats()
+        
+        threading.Thread(target=do_broadcast, daemon=True).start()
             
     def handle_tx_start(self, payload, sender):
         """Reçoit TX_START"""
@@ -588,7 +705,27 @@ class BitcoinMeshGateway:
         if r.status_code == 200:
             return r.text.strip()  # Le TXID
         else:
-            raise Exception(f"HTTP {r.status_code}: {r.text[:100]}")
+            error_text = r.text.strip()
+            
+            # Si la TX est déjà dans le mempool/blockchain, calculer le TXID
+            if "already" in error_text.lower() or "exist" in error_text.lower() or "duplicate" in error_text.lower():
+                # Calculer le TXID à partir du hex
+                txid = self._calculate_txid(tx_hex)
+                self.log(f"ℹ️ TX déjà dans le mempool/blockchain", "warning")
+                return txid  # Retourner quand même le TXID calculé
+            
+            raise Exception(f"HTTP {r.status_code}: {error_text[:100]}")
+    
+    def _calculate_txid(self, tx_hex):
+        """Calcule le TXID à partir du hex de la transaction"""
+        import hashlib
+        tx_bytes = bytes.fromhex(tx_hex)
+        # Double SHA256
+        hash1 = hashlib.sha256(tx_bytes).digest()
+        hash2 = hashlib.sha256(hash1).digest()
+        # Inverser (little-endian -> big-endian pour affichage)
+        txid = hash2[::-1].hex()
+        return txid
             
     def _broadcast_rpc(self, tx_hex, api_config):
         """Broadcast via Bitcoin Core RPC"""
