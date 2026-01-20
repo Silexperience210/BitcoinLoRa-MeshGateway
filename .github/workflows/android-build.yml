@@ -3,11 +3,9 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'android/**'
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Permet le déclenchement manuel
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,94 +20,101 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: |
-        cd android
-        chmod +x gradlew || echo "gradlew not found, will use gradle wrapper"
-
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
     - name: Create local.properties
       run: |
         cd android
-        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+    - name: Generate Gradle Wrapper
+      run: |
+        cd android
+        gradle wrapper --gradle-version 8.4
 
     - name: Build Debug APK
       run: |
         cd android
-        gradle assembleDebug --no-daemon
+        ./gradlew assembleDebug --no-daemon --stacktrace
 
-    - name: Build Release APK
+    - name: List APK files
       run: |
-        cd android
-        gradle assembleRelease --no-daemon
-      continue-on-error: true  # Release peut échouer sans keystore
+        find android -name "*.apk" -type f
 
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: BitcoinMesh-debug
+        name: BitcoinMesh-debug-apk
         path: android/app/build/outputs/apk/debug/*.apk
-        retention-days: 30
-
-    - name: Upload Release APK
-      uses: actions/upload-artifact@v4
-      if: success()
-      with:
-        name: BitcoinMesh-release
-        path: android/app/build/outputs/apk/release/*.apk
-        retention-days: 30
-      continue-on-error: true
+        retention-days: 90
+        if-no-files-found: error
 
   release:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     
     steps:
     - name: Download Debug APK
       uses: actions/download-artifact@v4
       with:
-        name: BitcoinMesh-debug
+        name: BitcoinMesh-debug-apk
         path: ./apk
 
     - name: Get current date
       id: date
       run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
+    - name: Rename APK
+      run: |
+        cd apk
+        mv *.apk BitcoinMesh-v1.0.0.apk 2>/dev/null || true
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v1.0.0-${{ steps.date.outputs.date }}
-        name: BitcoinMesh APK ${{ steps.date.outputs.date }}
+        name: "📱 BitcoinMesh APK v1.0.0"
         body: |
           ## 📱 BitcoinMesh Android App
           
           **Dark Neon Edition** - Direct Bluetooth to LoRa
           
-          ### Installation
-          1. Download `app-debug.apk` below
+          ### 📥 Installation
+          1. Download `BitcoinMesh-v1.0.0.apk` below
           2. Enable "Unknown Sources" on your Android device
           3. Install the APK
           4. Grant Bluetooth permissions when prompted
           
-          ### Features
+          ### ✨ Features
           - 🌑 Dark theme with orange neon accents
           - ⚡ Direct Bluetooth SPP connection to T-Beam
-          - 📦 Auto-chunking of Bitcoin transactions
+          - 📦 Auto-chunking of Bitcoin transactions (190 chars/chunk)
           - 📊 Real-time progress tracking
+          - 🔄 3-second delay between chunks for LoRa reliability
           
-          ### Requirements
+          ### 📋 Requirements
           - Android 8.0+ (API 26)
-          - Paired T-Beam with Meshtastic + BitcoinTxModule
+          - Paired T-Beam with Meshtastic + BitcoinTxModule firmware
+          
+          ### 🚀 Usage
+          1. Pair T-Beam in Android Bluetooth settings
+          2. Open BitcoinMesh app
+          3. Select T-Beam from dropdown
+          4. Tap "Connecter"
+          5. Paste your signed Bitcoin transaction (hex)
+          6. Tap "⚡ ENVOYER SUR LORA"
           
           ---
-          *Built automatically from commit ${{ github.sha }}*
+          *Built from commit ${{ github.sha }}*
+          
+          **By [Silexperience](https://github.com/Silexperience210) with [@ProfEduStream](https://github.com/ProfEduStream)** 🎓
         files: ./apk/*.apk
         draft: false
-        prerelease: true
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
