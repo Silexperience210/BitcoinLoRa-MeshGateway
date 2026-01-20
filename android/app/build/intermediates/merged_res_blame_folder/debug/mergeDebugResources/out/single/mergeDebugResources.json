@@ -1,0 +1,110 @@
+[
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_neon_border_glow.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/neon_border_glow.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/layout_activity_main.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_neon_button_orange.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/neon_button_orange.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_scan_lines.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/scan_lines.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_neon_progress.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/neon_progress.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_intense_glow_orange.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/intense_glow_orange.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_input_bg.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/input_bg.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_cyber_button.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/cyber_button.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_status_dot_green.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/status_dot_green.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_glass_panel.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/glass_panel.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_terminal_bg.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/terminal_bg.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_button_neon_primary.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/button_neon_primary.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_holographic_border.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/holographic_border.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_animated_gradient.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/animated_gradient.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_spinner_bg.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/spinner_bg.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_broadcast_button.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/broadcast_button.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_pulse_ring.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/pulse_ring.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_progress_bg.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/progress_bg.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_status_dot_red.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/status_dot_red.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_button_neon.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/button_neon.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_indicator_connected.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/indicator_connected.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_indicator_disconnected.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/indicator_disconnected.xml"
+    },
+    {
+        "merged": "com.bitcoinmesh.lora.app-debug-31:/drawable_bitcoin_lightning.xml.flat",
+        "source": "com.bitcoinmesh.lora.app-main-33:/drawable/bitcoin_lightning.xml"
+    }
+]

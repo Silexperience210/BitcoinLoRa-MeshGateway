@@ -23,8 +23,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         val MESHTASTIC_SERVICE_UUID: UUID = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
         val TORADIO_UUID: UUID = UUID.fromString("f75c76d2-129e-4dad-a1dd-7866124401e7")
-        const val MAX_CHUNK_SIZE = 190
+        const val MAX_CHUNK_SIZE = 200  // Will be adjusted based on MTU
         const val REQUEST_PERMISSIONS = 1001
+        const val DESIRED_MTU = 512  // Request max MTU
     }
 
     // UI Elements
@@ -55,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     private val writeLock = Object()
     private var writeCompleted = false
     private var lastWriteSuccess = false
+    private var currentMtu = 23  // Default BLE MTU
+    private var effectiveChunkSize = 150  // Safe default
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -264,7 +267,14 @@ class MainActivity : AppCompatActivity() {
                         isConnected = true
                         updateConnectionUI(true)
                     }
-                    try { gatt.discoverServices() } catch (e: SecurityException) {}
+                    // Request larger MTU FIRST, then discover services in onMtuChanged
+                    try { 
+                        gatt.requestMtu(DESIRED_MTU) 
+                        runOnUiThread { log("📶 Requesting MTU $DESIRED_MTU...") }
+                    } catch (e: SecurityException) {
+                        // Fallback: discover services directly
+                        try { gatt.discoverServices() } catch (e2: SecurityException) {}
+                    }
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     runOnUiThread {
@@ -274,6 +284,22 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+            currentMtu = if (status == BluetoothGatt.GATT_SUCCESS) mtu else 23
+            // Effective payload = MTU - 3 (ATT header), then leave room for protobuf overhead
+            effectiveChunkSize = (currentMtu - 3 - 50).coerceIn(50, 400)
+            runOnUiThread {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    log("✅ MTU négocié: $mtu bytes")
+                    log("📦 Chunk size: $effectiveChunkSize chars")
+                } else {
+                    log("⚠️ MTU par défaut: $currentMtu")
+                }
+            }
+            // NOW discover services
+            try { gatt.discoverServices() } catch (e: SecurityException) {}
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -339,6 +365,8 @@ class MainActivity : AppCompatActivity() {
         } catch (e: SecurityException) {}
         bluetoothGatt = null
         isConnected = false
+        currentMtu = 23
+        effectiveChunkSize = 150
         updateConnectionUI(false)
         log("🔌 Disconnected")
     }
@@ -346,7 +374,8 @@ class MainActivity : AppCompatActivity() {
     private fun updateCounters() {
         val text = txInput.text.toString()
         val bytes = text.length
-        val numChunks = if (bytes > 0) ((bytes - 1) / MAX_CHUNK_SIZE) + 1 else 0
+        val chunkSize = if (effectiveChunkSize > 0) effectiveChunkSize else 150
+        val numChunks = if (bytes > 0) ((bytes - 1) / chunkSize) + 1 else 0
         charCount.text = "$bytes BYTES"
         chunkCount.text = "$numChunks PACKETS"
     }
@@ -357,13 +386,15 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val chunks = txHex.chunked(MAX_CHUNK_SIZE)
+        // Use dynamically negotiated chunk size based on MTU
+        val chunkSize = effectiveChunkSize
+        val chunks = txHex.chunked(chunkSize)
         val totalChunks = chunks.size
 
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         log("🚀 BROADCASTING TX")
         log("📊 Size: ${txHex.length} bytes")
-        log("📦 Packets: $totalChunks")
+        log("📦 Packets: $totalChunks (MTU=$currentMtu)")
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         progressBar.visibility = View.VISIBLE

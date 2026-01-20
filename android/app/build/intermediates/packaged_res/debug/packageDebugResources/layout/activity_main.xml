@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0A0A12"
+    android:padding="16dp">
+
+    <!-- HEADER -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingVertical="16dp">
+
+        <!-- Pulse rings container -->
+        <FrameLayout
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_marginBottom="8dp">
+
+            <View
+                android:id="@+id/pulseRing1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/pulse_ring" />
+
+            <View
+                android:id="@+id/pulseRing2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/pulse_ring" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="₿"
+                android:textColor="#FF6B00"
+                android:textSize="36sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="BITCOIN MESH"
+            android:textColor="#FF6B00"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ LoRa Transaction Relay ⚡"
+            android:textColor="#00FF88"
+            android:textSize="12sp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <!-- CONNECTION STATUS -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#15151F"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical">
+
+        <View
+            android:id="@+id/connectionDot"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:background="@drawable/status_dot_red" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:text="OFFLINE"
+            android:textColor="#FF4444"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
+
+        <Button
+            android:id="@+id/scanButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="⟳ SCAN"
+            android:textColor="#00FF88"
+            android:textSize="12sp"
+            android:background="#252535"
+            android:paddingHorizontal="20dp" />
+    </LinearLayout>
+
+    <!-- TX INPUT LABEL -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="▶ TRANSACTION HEX"
+        android:textColor="#FF6B00"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:paddingBottom="6dp" />
+
+    <!-- TX INPUT -->
+    <EditText
+        android:id="@+id/txInput"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#12121A"
+        android:textColor="#00FF88"
+        android:textColorHint="#335544"
+        android:hint="Paste your signed Bitcoin transaction here..."
+        android:gravity="top"
+        android:padding="12dp"
+        android:inputType="textMultiLine"
+        android:scrollbars="vertical"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+    <!-- STATS -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingVertical="8dp">
+
+        <TextView
+            android:id="@+id/charCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="0 BYTES"
+            android:textColor="#666688"
+            android:textSize="12sp"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:id="@+id/chunkCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 PACKETS"
+            android:textColor="#FF6B00"
+            android:textSize="12sp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <!-- BROADCAST BUTTON -->
+    <Button
+        android:id="@+id/broadcastButton"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="⚡ BROADCAST TO MESH ⚡"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="#FF6B00"
+        android:layout_marginVertical="8dp"
+        android:enabled="false" />
+
+    <!-- PROGRESS -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:progressTint="#FF6B00"
+        android:progressBackgroundTint="#333344"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp" />
+
+    <!-- LOG LABEL -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="▶ SYSTEM LOG"
+        android:textColor="#666688"
+        android:textSize="10sp"
+        android:fontFamily="monospace"
+        android:paddingBottom="4dp" />
+
+    <!-- LOG OUTPUT -->
+    <ScrollView
+        android:id="@+id/logScroll"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="#0D0D15"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/logText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#00AA66"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:lineSpacingMultiplier="1.3" />
+    </ScrollView>
+
+    <!-- FOOTER -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SILEXPERIENCE × PROFEDUSTREAM"
+        android:textColor="#333344"
+        android:textSize="9sp"
+        android:gravity="center"
+        android:fontFamily="monospace"
+        android:paddingTop="8dp" />
+
+</LinearLayout>
