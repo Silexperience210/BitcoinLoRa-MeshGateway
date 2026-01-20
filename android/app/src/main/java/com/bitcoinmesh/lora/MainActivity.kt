@@ -1,107 +1,126 @@
 package com.bitcoinmesh.lora
 
-import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothSocket
 import android.content.ClipboardManager
+import android.content.ClipData
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.*
-import java.io.IOException
-import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Bitcoin LoRa Mesh - Interface simplifiée
+ * 
+ * Cette app prépare les chunks de transaction Bitcoin
+ * et les envoie via l'application Meshtastic officielle.
+ * 
+ * Le gateway reçoit les TEXT_MESSAGE et broadcast la TX sur le réseau Bitcoin.
+ */
 class MainActivity : AppCompatActivity() {
     
     companion object {
-        private const val TAG = "BitcoinMesh"
         private const val CHUNK_SIZE = 190
-        private const val CHUNK_DELAY_MS = 3000L
-        private const val REQUEST_BLUETOOTH_PERMISSIONS = 1
-        private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private const val MESHTASTIC_PACKAGE = "com.geeksville.mesh"
     }
     
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private var bluetoothSocket: BluetoothSocket? = null
-    private var outputStream: OutputStream? = null
-    
-    private lateinit var deviceSpinner: Spinner
-    private lateinit var refreshButton: Button
     private lateinit var txInput: EditText
     private lateinit var pasteButton: Button
     private lateinit var sendButton: Button
     private lateinit var clearButton: Button
+    private lateinit var installMeshButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var statusText: TextView
     private lateinit var logText: TextView
     private lateinit var chunkProgress: TextView
+    private lateinit var chunksDisplay: TextView
     
-    private val pairedDevices = mutableListOf<BluetoothDevice>()
-    private var isConnected = false
-    
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
+    private var currentChunks: List<String> = emptyList()
+    private var currentChunkIndex = 0
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         
         initViews()
-        checkPermissions()
+        checkMeshtasticInstalled()
     }
     
     private fun initViews() {
-        deviceSpinner = findViewById(R.id.deviceSpinner)
-        refreshButton = findViewById(R.id.refreshButton)
         txInput = findViewById(R.id.txInput)
         pasteButton = findViewById(R.id.pasteButton)
         sendButton = findViewById(R.id.sendButton)
         clearButton = findViewById(R.id.clearButton)
+        installMeshButton = findViewById(R.id.installMeshButton)
         progressBar = findViewById(R.id.progressBar)
         statusText = findViewById(R.id.statusText)
         logText = findViewById(R.id.logText)
         chunkProgress = findViewById(R.id.chunkProgress)
+        chunksDisplay = findViewById(R.id.chunksDisplay)
         
-        refreshButton.setOnClickListener { loadPairedDevices() }
         pasteButton.setOnClickListener { pasteFromClipboard() }
-        sendButton.setOnClickListener { connectAndSend() }
+        sendButton.setOnClickListener { prepareAndSend() }
         clearButton.setOnClickListener { clearAll() }
+        installMeshButton.setOnClickListener { openPlayStore() }
         
         txInput.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                updateChunkInfo()
-            }
+            override fun afterTextChanged(s: android.text.Editable?) { updateChunkPreview() }
         })
-        
-        deviceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (isConnected) disconnect()
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+    }
+    
+    private fun checkMeshtasticInstalled(): Boolean {
+        return try {
+            packageManager.getPackageInfo(MESHTASTIC_PACKAGE, 0)
+            installMeshButton.visibility = View.GONE
+            statusText.text = "✅ Meshtastic détecté - Prêt!"
+            log("✅ App Meshtastic installée")
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            installMeshButton.visibility = View.VISIBLE
+            statusText.text = "⚠️ Installez Meshtastic"
+            log("⚠️ App Meshtastic non trouvée")
+            false
         }
     }
     
-    private fun updateChunkInfo() {
+    private fun openPlayStore() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$MESHTASTIC_PACKAGE")))
+        } catch (e: Exception) {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$MESHTASTIC_PACKAGE")))
+        }
+    }
+    
+    private fun updateChunkPreview() {
         val tx = txInput.text.toString().trim()
         if (tx.isEmpty()) {
             chunkProgress.text = "0 caractères | 0 parties"
+            chunksDisplay.text = ""
+            return
+        }
+        
+        val numChunks = (tx.length + CHUNK_SIZE - 1) / CHUNK_SIZE
+        chunkProgress.text = "${tx.length} caractères | $numChunks parties"
+        
+        // Générer les chunks
+        currentChunks = tx.chunked(CHUNK_SIZE).mapIndexed { index, chunk ->
+            "BTX:${index + 1}/$numChunks:$chunk"
+        }
+        
+        // Afficher preview
+        val preview = currentChunks.take(3).joinToString("\n") { 
+            if (it.length > 50) it.substring(0, 50) + "..." else it
+        }
+        if (currentChunks.size > 3) {
+            chunksDisplay.text = "$preview\n... et ${currentChunks.size - 3} autres"
         } else {
-            val numChunks = (tx.length + CHUNK_SIZE - 1) / CHUNK_SIZE
-            chunkProgress.text = "${tx.length} caractères | $numChunks parties"
+            chunksDisplay.text = preview
         }
     }
     
@@ -117,202 +136,91 @@ class MainActivity : AppCompatActivity() {
     
     private fun clearAll() {
         txInput.setText("")
+        chunksDisplay.text = ""
+        currentChunks = emptyList()
+        currentChunkIndex = 0
+        progressBar.visibility = View.GONE
         log("🗑️ Effacé")
     }
     
-    private fun checkPermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-        
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-        }
-        
-        val missingPermissions = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        
-        if (missingPermissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), REQUEST_BLUETOOTH_PERMISSIONS)
-        } else {
-            initBluetooth()
-        }
-    }
-    
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_BLUETOOTH_PERMISSIONS) {
-            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                initBluetooth()
-            } else {
-                log("❌ Permissions Bluetooth refusées")
-                statusText.text = "❌ Permissions requises"
-            }
-        }
-    }
-    
-    private fun initBluetooth() {
-        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
-        
-        if (bluetoothAdapter == null || !bluetoothAdapter!!.isEnabled) {
-            log("⚠️ Bluetooth désactivé")
-            statusText.text = "⚠️ Activez le Bluetooth"
+    private fun prepareAndSend() {
+        if (currentChunks.isEmpty()) {
+            log("❌ Entrez une transaction")
+            Toast.makeText(this, "Entrez d'abord une transaction", Toast.LENGTH_SHORT).show()
             return
         }
         
-        loadPairedDevices()
-    }
-    
-    private fun loadPairedDevices() {
-        try {
-            pairedDevices.clear()
-            val bonded = bluetoothAdapter?.bondedDevices ?: emptySet()
-            pairedDevices.addAll(bonded)
-            
-            if (pairedDevices.isEmpty()) {
-                log("⚠️ Aucun appareil appairé")
-                statusText.text = "⚠️ Appairez le T-Beam d'abord"
-                return
-            }
-            
-            val deviceNames = pairedDevices.map { "${it.name ?: "Inconnu"}" }
-            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, deviceNames)
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            deviceSpinner.adapter = adapter
-            
-            log("📱 ${pairedDevices.size} appareils trouvés")
-            statusText.text = "✅ Prêt - Sélectionnez votre T-Beam"
-            
-        } catch (e: SecurityException) {
-            log("❌ Permission Bluetooth manquante")
-        }
-    }
-    
-    private fun connectAndSend() {
-        val tx = txInput.text.toString().trim()
-        
-        if (tx.isEmpty()) {
-            log("❌ Transaction vide")
-            statusText.text = "❌ Collez une transaction"
+        if (!checkMeshtasticInstalled()) {
+            log("❌ Installez d'abord Meshtastic")
             return
         }
         
-        val position = deviceSpinner.selectedItemPosition
-        if (position < 0 || position >= pairedDevices.size) {
-            log("❌ Sélectionnez un appareil")
-            return
-        }
-        
-        val device = pairedDevices[position]
-        
-        sendButton.isEnabled = false
-        pasteButton.isEnabled = false
-        clearButton.isEnabled = false
+        currentChunkIndex = 0
+        progressBar.max = currentChunks.size
+        progressBar.progress = 0
         progressBar.visibility = View.VISIBLE
         
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                // Connect
-                withContext(Dispatchers.Main) {
-                    statusText.text = "🔄 Connexion à ${device.name}..."
-                    log("🔄 Connexion...")
-                }
-                
-                bluetoothSocket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-                bluetoothSocket?.connect()
-                outputStream = bluetoothSocket?.outputStream
-                isConnected = true
-                
-                withContext(Dispatchers.Main) {
-                    log("✅ Connecté à ${device.name}")
-                }
-                
-                // Send chunks
-                val chunks = tx.chunked(CHUNK_SIZE)
-                val totalChunks = chunks.size
-                
-                withContext(Dispatchers.Main) {
-                    progressBar.max = totalChunks
-                    progressBar.progress = 0
-                    log("📦 Envoi: ${tx.length} chars → $totalChunks parties")
-                }
-                
-                for ((index, chunk) in chunks.withIndex()) {
-                    val chunkNum = index + 1
-                    val message = "BTX:$chunkNum/$totalChunks:$chunk\n"
-                    
-                    outputStream?.write(message.toByteArray())
-                    outputStream?.flush()
-                    
-                    withContext(Dispatchers.Main) {
-                        progressBar.progress = chunkNum
-                        statusText.text = "📤 Envoi partie $chunkNum/$totalChunks..."
-                        log("📤 Partie $chunkNum/$totalChunks (${chunk.length} chars)")
-                    }
-                    
-                    if (chunkNum < totalChunks) {
-                        delay(CHUNK_DELAY_MS)
-                    }
-                }
-                
-                withContext(Dispatchers.Main) {
-                    log("✅ Transaction envoyée!")
-                    statusText.text = "✅ TX envoyée sur LoRa!"
-                }
-                
-            } catch (e: IOException) {
-                withContext(Dispatchers.Main) {
-                    log("❌ Erreur: ${e.message}")
-                    statusText.text = "❌ Erreur connexion"
-                }
-            } catch (e: SecurityException) {
-                withContext(Dispatchers.Main) {
-                    log("❌ Permission refusée")
-                    statusText.text = "❌ Permission Bluetooth"
-                }
-            } finally {
-                disconnect()
-                withContext(Dispatchers.Main) {
-                    sendButton.isEnabled = true
-                    pasteButton.isEnabled = true
-                    clearButton.isEnabled = true
-                    progressBar.visibility = View.GONE
-                }
-            }
-        }
+        log("📦 ${currentChunks.size} parties à envoyer")
+        log("ℹ️ Copiez et collez chaque message dans Meshtastic")
+        
+        sendNextChunk()
     }
     
-    private fun disconnect() {
-        try {
-            outputStream?.close()
-            bluetoothSocket?.close()
-        } catch (e: IOException) {
-            Log.e(TAG, "Error closing socket", e)
+    private fun sendNextChunk() {
+        if (currentChunkIndex >= currentChunks.size) {
+            log("✅ Tous les chunks préparés!")
+            statusText.text = "✅ Transaction envoyée!"
+            progressBar.visibility = View.GONE
+            Toast.makeText(this, "Tous les messages envoyés!", Toast.LENGTH_LONG).show()
+            return
         }
-        outputStream = null
-        bluetoothSocket = null
-        isConnected = false
+        
+        val chunk = currentChunks[currentChunkIndex]
+        
+        // Copier dans le presse-papier
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("BTX Chunk", chunk)
+        clipboard.setPrimaryClip(clip)
+        
+        log("📋 Partie ${currentChunkIndex + 1}/${currentChunks.size} copiée!")
+        statusText.text = "📋 ${currentChunkIndex + 1}/${currentChunks.size} copié - Collez dans Meshtastic"
+        
+        // Ouvrir Meshtastic
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(MESHTASTIC_PACKAGE)
+            if (intent != null) {
+                startActivity(intent)
+                
+                Toast.makeText(
+                    this, 
+                    "Collez le message (${currentChunkIndex + 1}/${currentChunks.size}) dans Meshtastic et envoyez!\nRevenez pour le suivant.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } catch (e: Exception) {
+            log("❌ Impossible d'ouvrir Meshtastic")
+        }
+        
+        currentChunkIndex++
+        progressBar.progress = currentChunkIndex
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Quand l'utilisateur revient, proposer le prochain chunk
+        if (currentChunkIndex > 0 && currentChunkIndex < currentChunks.size) {
+            // Petit délai pour laisser l'UI se charger
+            window.decorView.postDelayed({
+                sendNextChunk()
+            }, 500)
+        }
     }
     
     private fun log(message: String) {
         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val logLine = "[$timestamp] $message\n"
-        
         runOnUiThread {
-            logText.append(logLine)
-            val scrollView = logText.parent as? ScrollView
-            scrollView?.fullScroll(View.FOCUS_DOWN)
+            logText.append("[$timestamp] $message\n")
+            (logText.parent as? ScrollView)?.fullScroll(View.FOCUS_DOWN)
         }
-    }
-    
-    override fun onDestroy() {
-        super.onDestroy()
-        disconnect()
-        coroutineScope.cancel()
     }
 }

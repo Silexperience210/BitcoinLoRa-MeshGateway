@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
-        android:paddingBottom="16dp">
+        android:paddingBottom="12dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -25,43 +25,27 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Broadcast Bitcoin over LoRa"
+            android:text="Broadcast Bitcoin over LoRa via Meshtastic"
             android:textColor="#888899"
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- Device Selection -->
-    <LinearLayout
+    <!-- Install Meshtastic Button (hidden if installed) -->
+    <Button
+        android:id="@+id/installMeshButton"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingBottom="12dp">
-
-        <Spinner
-            android:id="@+id/deviceSpinner"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:background="@drawable/spinner_bg"
-            android:popupBackground="#1a1a25"
-            android:padding="8dp" />
-
-        <Button
-            android:id="@+id/refreshButton"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:layout_marginStart="8dp"
-            android:text="🔄"
-            android:textSize="18sp"
-            android:background="@drawable/button_neon"
-            android:textColor="#ff6b00" />
-    </LinearLayout>
+        android:layout_height="50dp"
+        android:text="📲 Installer Meshtastic (requis)"
+        android:textColor="#ffffff"
+        android:background="@drawable/button_neon_primary"
+        android:visibility="gone"
+        android:layout_marginBottom="12dp" />
 
     <!-- TX Input -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="📝 Transaction Bitcoin (hex)"
+        android:text="📝 Transaction Bitcoin (hex brut)"
         android:textColor="#ff6b00"
         android:textSize="14sp"
         android:paddingBottom="8dp" />
@@ -79,7 +63,7 @@
         android:padding="12dp"
         android:inputType="textMultiLine"
         android:scrollbars="vertical"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:fontFamily="monospace" />
 
     <!-- Char Counter -->
@@ -92,13 +76,34 @@
         android:textSize="12sp"
         android:gravity="end"
         android:paddingTop="4dp"
-        android:paddingBottom="8dp" />
+        android:paddingBottom="4dp" />
+
+    <!-- Chunks Preview -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="📦 Aperçu des parties:"
+        android:textColor="#ff6b00"
+        android:textSize="12sp"
+        android:paddingBottom="2dp" />
+
+    <TextView
+        android:id="@+id/chunksDisplay"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="@drawable/input_bg"
+        android:textColor="#888899"
+        android:textSize="9sp"
+        android:padding="8dp"
+        android:fontFamily="monospace"
+        android:scrollbars="vertical" />
 
     <!-- Action Buttons -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:paddingTop="12dp"
         android:paddingBottom="12dp">
 
         <Button
@@ -152,7 +157,7 @@
         android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="✅ Prêt - Sélectionnez votre T-Beam"
+        android:text="🔄 Vérification Meshtastic..."
         android:textColor="#00ff88"
         android:textSize="14sp"
         android:gravity="center"
@@ -170,7 +175,7 @@
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="120dp"
+        android:layout_height="100dp"
         android:background="@drawable/input_bg">
 
         <TextView
