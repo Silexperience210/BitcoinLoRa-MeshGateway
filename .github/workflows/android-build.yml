@@ -1,0 +1,115 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Permet le déclenchement manuel
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: |
+        cd android
+        chmod +x gradlew || echo "gradlew not found, will use gradle wrapper"
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Create local.properties
+      run: |
+        cd android
+        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+    - name: Build Debug APK
+      run: |
+        cd android
+        gradle assembleDebug --no-daemon
+
+    - name: Build Release APK
+      run: |
+        cd android
+        gradle assembleRelease --no-daemon
+      continue-on-error: true  # Release peut échouer sans keystore
+
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: BitcoinMesh-debug
+        path: android/app/build/outputs/apk/debug/*.apk
+        retention-days: 30
+
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: BitcoinMesh-release
+        path: android/app/build/outputs/apk/release/*.apk
+        retention-days: 30
+      continue-on-error: true
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Download Debug APK
+      uses: actions/download-artifact@v4
+      with:
+        name: BitcoinMesh-debug
+        path: ./apk
+
+    - name: Get current date
+      id: date
+      run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v1.0.0-${{ steps.date.outputs.date }}
+        name: BitcoinMesh APK ${{ steps.date.outputs.date }}
+        body: |
+          ## 📱 BitcoinMesh Android App
+          
+          **Dark Neon Edition** - Direct Bluetooth to LoRa
+          
+          ### Installation
+          1. Download `app-debug.apk` below
+          2. Enable "Unknown Sources" on your Android device
+          3. Install the APK
+          4. Grant Bluetooth permissions when prompted
+          
+          ### Features
+          - 🌑 Dark theme with orange neon accents
+          - ⚡ Direct Bluetooth SPP connection to T-Beam
+          - 📦 Auto-chunking of Bitcoin transactions
+          - 📊 Real-time progress tracking
+          
+          ### Requirements
+          - Android 8.0+ (API 26)
+          - Paired T-Beam with Meshtastic + BitcoinTxModule
+          
+          ---
+          *Built automatically from commit ${{ github.sha }}*
+        files: ./apk/*.apk
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
