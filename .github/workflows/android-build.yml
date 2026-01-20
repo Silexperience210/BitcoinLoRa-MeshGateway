@@ -1,4 +1,4 @@
-name: Android Build & Release
+name: Build APK
 
 on:
   push:
@@ -100,3 +100,4 @@ jobs:
         make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
