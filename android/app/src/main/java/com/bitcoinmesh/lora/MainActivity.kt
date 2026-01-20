@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
         const val REQUEST_PERMISSIONS = 1001
     }
 
-    // UI Elements - IDs match activity_main.xml
+    // UI Elements
     private lateinit var statusText: TextView
     private lateinit var txInput: EditText
     private lateinit var broadcastButton: Button
@@ -48,10 +48,8 @@ class MainActivity : AppCompatActivity() {
     private var isConnected = false
     private var isScanning = false
     private val handler = Handler(Looper.getMainLooper())
-
-    // Animations
-    private var pulseAnimator1: ObjectAnimator? = null
-    private var pulseAnimator2: ObjectAnimator? = null
+    private var writeQueue = mutableListOf<ByteArray>()
+    private var isWriting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,8 +61,8 @@ class MainActivity : AppCompatActivity() {
         startPulseAnimations()
         checkPermissions()
 
-        log("⚡ BITCOIN MESH v2.0 NEON")
-        log("🔗 LoRa Transaction Relay System")
+        log("⚡ BITCOIN MESH v2.1")
+        log("🔗 LoRa Transaction Relay")
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     }
 
@@ -126,7 +124,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startPulseAnimations() {
-        pulseAnimator1 = ObjectAnimator.ofFloat(pulseRing1, "alpha", 0.8f, 0f).apply {
+        ObjectAnimator.ofFloat(pulseRing1, "alpha", 0.8f, 0f).apply {
             duration = 2000
             repeatCount = ValueAnimator.INFINITE
             interpolator = LinearInterpolator()
@@ -136,36 +134,29 @@ class MainActivity : AppCompatActivity() {
         ObjectAnimator.ofFloat(pulseRing1, "scaleX", 0.5f, 1.5f).apply {
             duration = 2000
             repeatCount = ValueAnimator.INFINITE
-            interpolator = LinearInterpolator()
             start()
         }
 
         ObjectAnimator.ofFloat(pulseRing1, "scaleY", 0.5f, 1.5f).apply {
             duration = 2000
             repeatCount = ValueAnimator.INFINITE
-            interpolator = LinearInterpolator()
             start()
         }
 
         handler.postDelayed({
-            pulseAnimator2 = ObjectAnimator.ofFloat(pulseRing2, "alpha", 0.6f, 0f).apply {
+            ObjectAnimator.ofFloat(pulseRing2, "alpha", 0.6f, 0f).apply {
                 duration = 2000
                 repeatCount = ValueAnimator.INFINITE
-                interpolator = LinearInterpolator()
                 start()
             }
-
             ObjectAnimator.ofFloat(pulseRing2, "scaleX", 0.5f, 1.5f).apply {
                 duration = 2000
                 repeatCount = ValueAnimator.INFINITE
-                interpolator = LinearInterpolator()
                 start()
             }
-
             ObjectAnimator.ofFloat(pulseRing2, "scaleY", 0.5f, 1.5f).apply {
                 duration = 2000
                 repeatCount = ValueAnimator.INFINITE
-                interpolator = LinearInterpolator()
                 start()
             }
         }, 1000)
@@ -206,16 +197,14 @@ class MainActivity : AppCompatActivity() {
 
         isScanning = true
         scanButton.text = "SCANNING..."
-        log("🔍 Scanning for Meshtastic devices...")
+        log("🔍 Scanning for Meshtastic...")
 
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device
                 val name = device.name ?: "Unknown"
 
-                if (name.contains("Meshtastic", ignoreCase = true) ||
-                    result.scanRecord?.serviceUuids?.any { it.uuid == MESHTASTIC_SERVICE_UUID } == true) {
-
+                if (name.contains("Meshtastic", ignoreCase = true)) {
                     log("📡 Found: $name")
                     stopScan(scanner, this)
                     connectToDevice(device)
@@ -229,44 +218,35 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
-
         try {
-            scanner.startScan(null, settings, scanCallback)
+            scanner.startScan(null, ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build(), scanCallback)
 
             handler.postDelayed({
                 if (isScanning) {
                     stopScan(scanner, scanCallback)
-                    log("⏱️ Scan timeout - no device found")
+                    log("⏱️ Scan timeout")
                 }
             }, 15000)
         } catch (e: SecurityException) {
-            log("❌ Permission denied for scanning")
+            log("❌ Permission denied")
             isScanning = false
         }
     }
 
     private fun stopScan(scanner: BluetoothLeScanner, callback: ScanCallback) {
-        try {
-            scanner.stopScan(callback)
-        } catch (e: SecurityException) {
-            // Ignore
-        }
+        try { scanner.stopScan(callback) } catch (e: SecurityException) {}
         isScanning = false
-        runOnUiThread {
-            scanButton.text = if (isConnected) "DISCONNECT" else "⟳ SCAN"
-        }
+        runOnUiThread { scanButton.text = if (isConnected) "DISCONNECT" else "⟳ SCAN" }
     }
 
     private fun connectToDevice(device: BluetoothDevice) {
         log("🔗 Connecting to ${device.name ?: device.address}...")
-
         try {
             bluetoothGatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
         } catch (e: SecurityException) {
-            log("❌ Permission denied for connection")
+            log("❌ Connection permission denied")
         }
     }
 
@@ -279,11 +259,7 @@ class MainActivity : AppCompatActivity() {
                         isConnected = true
                         updateConnectionUI(true)
                     }
-                    try {
-                        gatt.discoverServices()
-                    } catch (e: SecurityException) {
-                        runOnUiThread { log("❌ Permission denied") }
-                    }
+                    try { gatt.discoverServices() } catch (e: SecurityException) {}
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     runOnUiThread {
@@ -300,13 +276,13 @@ class MainActivity : AppCompatActivity() {
                 val service = gatt.getService(MESHTASTIC_SERVICE_UUID)
                 if (service != null) {
                     toRadioCharacteristic = service.getCharacteristic(TORADIO_UUID)
-                    if (toRadioCharacteristic != null) {
-                        runOnUiThread {
-                            log("📻 Meshtastic service ready")
+                    runOnUiThread {
+                        if (toRadioCharacteristic != null) {
+                            log("📻 Meshtastic ready!")
                             broadcastButton.isEnabled = true
+                        } else {
+                            log("❌ ToRadio not found")
                         }
-                    } else {
-                        runOnUiThread { log("❌ ToRadio characteristic not found") }
                     }
                 } else {
                     runOnUiThread { log("❌ Meshtastic service not found") }
@@ -317,11 +293,14 @@ class MainActivity : AppCompatActivity() {
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             runOnUiThread {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    log("📤 Chunk sent successfully")
+                    log("📤 Packet sent OK")
                 } else {
                     log("❌ Write failed: $status")
                 }
             }
+            // Process next in queue
+            isWriting = false
+            processWriteQueue()
         }
     }
 
@@ -346,27 +325,24 @@ class MainActivity : AppCompatActivity() {
         try {
             bluetoothGatt?.disconnect()
             bluetoothGatt?.close()
-        } catch (e: SecurityException) {
-            // Ignore
-        }
+        } catch (e: SecurityException) {}
         bluetoothGatt = null
         isConnected = false
         updateConnectionUI(false)
-        log("🔌 Disconnected from mesh")
+        log("🔌 Disconnected")
     }
 
     private fun updateCounters() {
         val text = txInput.text.toString()
         val bytes = text.length
         val numChunks = if (bytes > 0) ((bytes - 1) / MAX_CHUNK_SIZE) + 1 else 0
-
         charCount.text = "$bytes BYTES"
         chunkCount.text = "$numChunks PACKETS"
     }
 
     private fun sendTransaction(txHex: String) {
         if (!isConnected || toRadioCharacteristic == null) {
-            log("❌ Not connected to mesh")
+            log("❌ Not connected")
             return
         }
 
@@ -374,9 +350,9 @@ class MainActivity : AppCompatActivity() {
         val totalChunks = chunks.size
 
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log("🚀 BROADCASTING TRANSACTION")
+        log("🚀 BROADCASTING TX")
         log("📊 Size: ${txHex.length} bytes")
-        log("📦 Chunks: $totalChunks packets")
+        log("📦 Packets: $totalChunks")
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         progressBar.visibility = View.VISIBLE
@@ -384,91 +360,132 @@ class MainActivity : AppCompatActivity() {
         progressBar.progress = 0
         broadcastButton.isEnabled = false
 
+        // Queue all messages
+        writeQueue.clear()
+        chunks.forEachIndexed { index, chunk ->
+            val message = "BTX:${index + 1}/$totalChunks:$chunk"
+            val packet = buildToRadioPacket(message)
+            writeQueue.add(packet)
+        }
+
+        // Start sending
         Thread {
-            chunks.forEachIndexed { index, chunk ->
-                val message = "BTX:${index + 1}/$totalChunks:$chunk"
-                val sent = sendMeshMessage(message)
-
-                runOnUiThread {
-                    if (sent) {
-                        log("📡 [${index + 1}/$totalChunks] Transmitted")
-                    } else {
-                        log("❌ [${index + 1}/$totalChunks] Failed")
-                    }
-                    progressBar.progress = index + 1
-                }
-
-                Thread.sleep(500)
+            var sentCount = 0
+            chunks.forEachIndexed { index, _ ->
+                runOnUiThread { log("📡 [${index + 1}/$totalChunks] Sending...") }
+                
+                // Send packet
+                val packet = writeQueue[index]
+                sendPacket(packet)
+                
+                // Wait for BLE write to complete
+                Thread.sleep(800)
+                
+                sentCount++
+                runOnUiThread { progressBar.progress = sentCount }
             }
 
             runOnUiThread {
                 log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                log("✅ BROADCAST COMPLETE")
-                log("⚡ TX relayed to LoRa mesh!")
+                log("✅ BROADCAST COMPLETE!")
+                log("⚡ TX sent to LoRa mesh")
                 log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 progressBar.visibility = View.GONE
                 broadcastButton.isEnabled = true
-                flashSuccess()
             }
         }.start()
     }
 
-    private fun sendMeshMessage(message: String): Boolean {
-        val characteristic = toRadioCharacteristic ?: return false
-        val gatt = bluetoothGatt ?: return false
+    private fun sendPacket(data: ByteArray) {
+        val characteristic = toRadioCharacteristic ?: return
+        val gatt = bluetoothGatt ?: return
 
         try {
-            val toRadioBytes = buildToRadioPacket(message)
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                gatt.writeCharacteristic(characteristic, toRadioBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                gatt.writeCharacteristic(characteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
             } else {
                 @Suppress("DEPRECATION")
-                characteristic.value = toRadioBytes
+                characteristic.value = data
                 @Suppress("DEPRECATION")
                 gatt.writeCharacteristic(characteristic)
             }
-            return true
         } catch (e: SecurityException) {
-            runOnUiThread { log("❌ Permission denied for write") }
-            return false
-        } catch (e: Exception) {
-            runOnUiThread { log("❌ Error: ${e.message}") }
-            return false
+            runOnUiThread { log("❌ Write permission denied") }
         }
     }
 
+    private fun processWriteQueue() {
+        if (isWriting || writeQueue.isEmpty()) return
+        isWriting = true
+        val data = writeQueue.removeAt(0)
+        sendPacket(data)
+    }
+
+    /**
+     * Build a proper Meshtastic ToRadio protobuf packet
+     * 
+     * ToRadio {
+     *   packet: MeshPacket {  // field 1
+     *     to: 0xFFFFFFFF     // field 2 - broadcast
+     *     channel: 0         // field 3 - primary channel
+     *     decoded: Data {    // field 5 (NOT 6!)
+     *       portnum: 1       // TEXT_MESSAGE_APP
+     *       payload: bytes
+     *     }
+     *     want_ack: true     // field 6
+     *     hop_limit: 3       // field 11
+     *   }
+     * }
+     */
     private fun buildToRadioPacket(message: String): ByteArray {
         val payload = message.toByteArray(Charsets.UTF_8)
 
-        // Build inner decoded message
-        val decoded = ByteArrayOutputStream()
-        // portnum = 1 (TEXT_MESSAGE_APP)
-        decoded.write(0x08)
-        decoded.write(0x01)
-        // payload
-        decoded.write(0x12)
-        writeVarint(decoded, payload.size)
-        decoded.write(payload)
-
-        val decodedBytes = decoded.toByteArray()
+        // Build Data message
+        val data = ByteArrayOutputStream()
+        // portnum = 1 (TEXT_MESSAGE_APP) - field 1, varint
+        data.write(0x08)  // (1 << 3) | 0 = 0x08
+        data.write(0x01)  // value = 1
+        // payload - field 2, length-delimited
+        data.write(0x12)  // (2 << 3) | 2 = 0x12
+        writeVarint(data, payload.size)
+        data.write(payload)
+        val dataBytes = data.toByteArray()
 
         // Build MeshPacket
         val meshPacket = ByteArrayOutputStream()
-        // to = broadcast (0xFFFFFFFF)
-        meshPacket.write(0x10)
-        writeVarint(meshPacket, 0xFFFFFFFF.toInt())
-        // decoded (field 6)
-        meshPacket.write(0x32)
-        writeVarint(meshPacket, decodedBytes.size)
-        meshPacket.write(decodedBytes)
-
+        
+        // to = 0xFFFFFFFF (broadcast) - field 2, varint
+        meshPacket.write(0x10)  // (2 << 3) | 0 = 0x10
+        // Write 0xFFFFFFFF as unsigned varint (5 bytes for 32-bit max)
+        meshPacket.write(0xFF)
+        meshPacket.write(0xFF)
+        meshPacket.write(0xFF)
+        meshPacket.write(0xFF)
+        meshPacket.write(0x0F)
+        
+        // channel = 0 - field 3, varint (optional, 0 is default)
+        meshPacket.write(0x18)  // (3 << 3) | 0 = 0x18
+        meshPacket.write(0x00)
+        
+        // decoded = Data - field 5, length-delimited (NOT field 6!)
+        meshPacket.write(0x2A)  // (5 << 3) | 2 = 0x2A
+        writeVarint(meshPacket, dataBytes.size)
+        meshPacket.write(dataBytes)
+        
+        // want_ack = true - field 6, varint
+        meshPacket.write(0x30)  // (6 << 3) | 0 = 0x30
+        meshPacket.write(0x01)  // true
+        
+        // hop_limit = 3 - field 11, varint
+        meshPacket.write(0x58)  // (11 << 3) | 0 = 0x58
+        meshPacket.write(0x03)  // value = 3
+        
         val meshPacketBytes = meshPacket.toByteArray()
 
         // Build ToRadio
         val toRadio = ByteArrayOutputStream()
-        // packet (field 1)
-        toRadio.write(0x0A)
+        // packet - field 1, length-delimited
+        toRadio.write(0x0A)  // (1 << 3) | 2 = 0x0A
         writeVarint(toRadio, meshPacketBytes.size)
         toRadio.write(meshPacketBytes)
 
@@ -484,19 +501,6 @@ class MainActivity : AppCompatActivity() {
         stream.write(v and 0x7F)
     }
 
-    private fun flashSuccess() {
-        val originalColor = ContextCompat.getColor(this, R.color.neon_orange)
-        val successColor = ContextCompat.getColor(this, R.color.neon_green)
-
-        ValueAnimator.ofArgb(successColor, originalColor).apply {
-            duration = 1500
-            addUpdateListener { animator ->
-                broadcastButton.setBackgroundColor(animator.animatedValue as Int)
-            }
-            start()
-        }
-    }
-
     private fun log(message: String) {
         runOnUiThread {
             val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
@@ -508,8 +512,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        pulseAnimator1?.cancel()
-        pulseAnimator2?.cancel()
         disconnect()
     }
 }
