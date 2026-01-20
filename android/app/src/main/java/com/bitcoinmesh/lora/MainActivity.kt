@@ -21,10 +21,8 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.protobuf.ByteString
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
     
@@ -545,4 +543,6 @@ umChunks PACKETS"
         disconnect()
     }
 }
+
+
 
