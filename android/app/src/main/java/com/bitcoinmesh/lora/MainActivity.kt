@@ -1,548 +1,527 @@
 package com.bitcoinmesh.lora
 
 import android.Manifest
-import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.bluetooth.*
 import android.bluetooth.le.*
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Color
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.os.*
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
-import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.text.SimpleDateFormat
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
-    
+
+    // Meshtastic BLE UUIDs
     companion object {
-        private const val TAG = "BitcoinMesh"
-        private const val CHUNK_SIZE = 190
-        private const val CHUNK_DELAY_MS = 2500L
-        private const val REQUEST_PERMISSIONS = 1
-        
-        // Meshtastic BLE UUIDs
-        private val MESHTASTIC_SERVICE = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
-        private val TORADIO_UUID = UUID.fromString("f75c76d2-129e-4dad-a1dd-7866124401e7")
-        private val FROMRADIO_UUID = UUID.fromString("2c55e69e-4993-11ed-b878-0242ac120002")
-        private val FROMNUM_UUID = UUID.fromString("ed9da18c-a800-4f66-a670-aa7547e34453")
+        val MESHTASTIC_SERVICE_UUID: UUID = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
+        val TORADIO_UUID: UUID = UUID.fromString("f75c76d2-129e-4dad-a1dd-7866124401e7")
+        val FROMRADIO_UUID: UUID = UUID.fromString("2c55e69e-4993-11ed-b878-0242ac120002")
+        const val MAX_CHUNK_SIZE = 190
+        const val REQUEST_PERMISSIONS = 1001
     }
-    
-    // BLE
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private var bluetoothGatt: BluetoothGatt? = null
-    private var toRadioChar: BluetoothGattCharacteristic? = null
-    private var isScanning = false
-    private var isConnected = false
-    private val devices = mutableListOf<BluetoothDevice>()
-    
-    // UI
+
+    // UI Elements
     private lateinit var statusText: TextView
-    private lateinit var scanButton: Button
-    private lateinit var deviceSpinner: Spinner
-    private lateinit var connectButton: Button
     private lateinit var txInput: EditText
+    private lateinit var sendButton: Button
+    private lateinit var scanButton: Button
+    private lateinit var logView: TextView
+    private lateinit var scrollView: ScrollView
     private lateinit var charCount: TextView
     private lateinit var chunkCount: TextView
-    private lateinit var pasteButton: Button
-    private lateinit var clearButton: Button
-    private lateinit var broadcastButton: Button
-    private lateinit var progressContainer: View
-    private lateinit var progressBar: ProgressBar
-    private lateinit var progressText: TextView
-    private lateinit var logText: TextView
-    private lateinit var logScroll: ScrollView
-    private lateinit var connectionDot: View
+    private lateinit var connectionIndicator: View
     private lateinit var pulseRing1: View
     private lateinit var pulseRing2: View
-    private lateinit var titleText: TextView
-    private lateinit var broadcastGlow: View
-    
+    private lateinit var progressBar: ProgressBar
+
+    // Bluetooth
+    private var bluetoothAdapter: BluetoothAdapter? = null
+    private var bluetoothGatt: BluetoothGatt? = null
+    private var toRadioCharacteristic: BluetoothGattCharacteristic? = null
+    private var isConnected = false
+    private var isScanning = false
     private val handler = Handler(Looper.getMainLooper())
-    private var chunks: List<String> = emptyList()
-    private var currentChunk = 0
-    private var myNodeNum: Int = 0
-    
-    // GATT Callback
-    private val gattCallback = object : BluetoothGattCallback() {
-        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            handler.post {
-                when (newState) {
-                    BluetoothProfile.STATE_CONNECTED -> {
-                        log("⚡ BLE CONNECTED")
-                        isConnected = true
-                        updateConnectionUI(true)
-                        try { gatt.discoverServices() } catch (e: SecurityException) {}
-                    }
-                    BluetoothProfile.STATE_DISCONNECTED -> {
-                        log("🔌 DISCONNECTED")
-                        isConnected = false
-                        updateConnectionUI(false)
-                        bluetoothGatt = null
-                    }
-                }
-            }
-        }
-        
-        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            handler.post {
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    val service = gatt.getService(MESHTASTIC_SERVICE)
-                    if (service != null) {
-                        toRadioChar = service.getCharacteristic(TORADIO_UUID)
-                        if (toRadioChar != null) {
-                            log("✅ MESHTASTIC READY")
-                            statusText.text = "⚡ MESH ONLINE"
-                            broadcastButton.isEnabled = true
-                            pulseSuccess()
-                        } else {
-                            log("❌ ToRadio not found")
-                        }
-                    } else {
-                        log("❌ Meshtastic service not found")
-                    }
-                }
-            }
-        }
-        
-        override fun onCharacteristicWrite(gatt: BluetoothGatt, char: BluetoothGattCharacteristic, status: Int) {
-            handler.post {
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    currentChunk++
-                    updateProgress()
-                    if (currentChunk < chunks.size) {
-                        handler.postDelayed({ sendNextChunk() }, CHUNK_DELAY_MS)
-                    } else {
-                        onTransmitComplete()
-                    }
-                } else {
-                    log("❌ WRITE FAILED")
-                }
-            }
-        }
-    }
-    
-    // Scan callback
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            try {
-                val device = result.device
-                val name = device.name ?: return
-                if (name.contains("Mesh", true) && devices.none { it.address == device.address }) {
-                    devices.add(device)
-                    updateDeviceSpinner()
-                    log("📡 Found: $
-ame")
-                }
-            } catch (e: SecurityException) {}
-        }
-    }
+
+    // Animations
+    private var pulseAnimator1: ObjectAnimator? = null
+    private var pulseAnimator2: ObjectAnimator? = null
+    private var glowAnimator: ValueAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        
+
         initViews()
-        startAnimations()
+        initBluetooth()
+        setupListeners()
+        startPulseAnimations()
         checkPermissions()
+
+        log("⚡ BITCOIN MESH v2.0 NEON")
+        log("🔗 LoRa Transaction Relay System")
+        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     }
-    
+
     private fun initViews() {
         statusText = findViewById(R.id.statusText)
-        scanButton = findViewById(R.id.scanButton)
-        deviceSpinner = findViewById(R.id.deviceSpinner)
-        connectButton = findViewById(R.id.connectButton)
         txInput = findViewById(R.id.txInput)
+        sendButton = findViewById(R.id.sendButton)
+        scanButton = findViewById(R.id.scanButton)
+        logView = findViewById(R.id.logView)
+        scrollView = findViewById(R.id.scrollView)
         charCount = findViewById(R.id.charCount)
         chunkCount = findViewById(R.id.chunkCount)
-        pasteButton = findViewById(R.id.pasteButton)
-        clearButton = findViewById(R.id.clearButton)
-        broadcastButton = findViewById(R.id.broadcastButton)
-        progressContainer = findViewById(R.id.progressContainer)
-        progressBar = findViewById(R.id.progressBar)
-        progressText = findViewById(R.id.progressText)
-        logText = findViewById(R.id.logText)
-        logScroll = findViewById(R.id.logScroll)
-        connectionDot = findViewById(R.id.connectionDot)
+        connectionIndicator = findViewById(R.id.connectionIndicator)
         pulseRing1 = findViewById(R.id.pulseRing1)
         pulseRing2 = findViewById(R.id.pulseRing2)
-        titleText = findViewById(R.id.titleText)
-        broadcastGlow = findViewById(R.id.broadcastGlow)
-        
-        scanButton.setOnClickListener { startScan() }
-        connectButton.setOnClickListener { toggleConnect() }
-        pasteButton.setOnClickListener { paste() }
-        clearButton.setOnClickListener { clear() }
-        broadcastButton.setOnClickListener { broadcast() }
-        
-        txInput.addTextChangedListener(object : android.text.TextWatcher {
+        progressBar = findViewById(R.id.progressBar)
+
+        sendButton.isEnabled = false
+        progressBar.visibility = View.GONE
+    }
+
+    private fun initBluetooth() {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothAdapter = bluetoothManager.adapter
+
+        if (bluetoothAdapter == null) {
+            log("❌ Bluetooth not available")
+            return
+        }
+
+        if (!bluetoothAdapter!!.isEnabled) {
+            log("⚠️ Please enable Bluetooth")
+        }
+    }
+
+    private fun setupListeners() {
+        scanButton.setOnClickListener {
+            if (isConnected) {
+                disconnect()
+            } else {
+                startScan()
+            }
+        }
+
+        sendButton.setOnClickListener {
+            val txHex = txInput.text.toString().trim()
+            if (txHex.isNotEmpty()) {
+                sendTransaction(txHex)
+            }
+        }
+
+        txInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) { updateCounts() }
-        })
-        
-        broadcastButton.isEnabled = false
-        log("⚡ BITCOIN MESH v2.0")
-        log("🔧 Initializing...")
-    }
-    
-    private fun startAnimations() {
-        // Pulse rings animation
-        val pulse1 = ObjectAnimator.ofFloat(pulseRing1, "scaleX", 0.6f, 1.2f).apply {
-            duration = 2000
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-        val pulse1Y = ObjectAnimator.ofFloat(pulseRing1, "scaleY", 0.6f, 1.2f).apply {
-            duration = 2000
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-        val pulse1Alpha = ObjectAnimator.ofFloat(pulseRing1, "alpha", 0.8f, 0f).apply {
-            duration = 2000
-            repeatCount = ValueAnimator.INFINITE
-        }
-        
-        val pulse2 = ObjectAnimator.ofFloat(pulseRing2, "scaleX", 0.6f, 1.4f).apply {
-            duration = 2000
-            startDelay = 500
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-        val pulse2Y = ObjectAnimator.ofFloat(pulseRing2, "scaleY", 0.6f, 1.4f).apply {
-            duration = 2000
-            startDelay = 500
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-        }
-        val pulse2Alpha = ObjectAnimator.ofFloat(pulseRing2, "alpha", 0.6f, 0f).apply {
-            duration = 2000
-            startDelay = 500
-            repeatCount = ValueAnimator.INFINITE
-        }
-        
-        AnimatorSet().apply {
-            playTogether(pulse1, pulse1Y, pulse1Alpha, pulse2, pulse2Y, pulse2Alpha)
-            start()
-        }
-        
-        // Title glow animation
-        ValueAnimator.ofFloat(15f, 25f, 15f).apply {
-            duration = 3000
-            repeatCount = ValueAnimator.INFINITE
-            addUpdateListener {
-                titleText.setShadowLayer(it.animatedValue as Float, 0f, 0f, 0xFFFF6B00.toInt())
+            override fun afterTextChanged(s: Editable?) {
+                updateCounters()
             }
-            start()
-        }
-        
-        // Broadcast button glow pulse
-        ValueAnimator.ofFloat(0.3f, 0.6f, 0.3f).apply {
+        })
+    }
+
+    private fun startPulseAnimations() {
+        pulseAnimator1 = ObjectAnimator.ofFloat(pulseRing1, "alpha", 0.8f, 0f).apply {
             duration = 2000
             repeatCount = ValueAnimator.INFINITE
             interpolator = LinearInterpolator()
-            addUpdateListener {
-                broadcastGlow.alpha = it.animatedValue as Float
+            start()
+        }
+
+        ObjectAnimator.ofFloat(pulseRing1, "scaleX", 0.5f, 1.5f).apply {
+            duration = 2000
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+        }
+
+        ObjectAnimator.ofFloat(pulseRing1, "scaleY", 0.5f, 1.5f).apply {
+            duration = 2000
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+        }
+
+        handler.postDelayed({
+            pulseAnimator2 = ObjectAnimator.ofFloat(pulseRing2, "alpha", 0.6f, 0f).apply {
+                duration = 2000
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
             }
-            start()
-        }
+
+            ObjectAnimator.ofFloat(pulseRing2, "scaleX", 0.5f, 1.5f).apply {
+                duration = 2000
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
+            }
+
+            ObjectAnimator.ofFloat(pulseRing2, "scaleY", 0.5f, 1.5f).apply {
+                duration = 2000
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                start()
+            }
+        }, 1000)
     }
-    
-    private fun pulseSuccess() {
-        ObjectAnimator.ofFloat(connectionDot, "scaleX", 1f, 1.5f, 1f).apply {
-            duration = 300
-            start()
-        }
-        ObjectAnimator.ofFloat(connectionDot, "scaleY", 1f, 1.5f, 1f).apply {
-            duration = 300
-            start()
-        }
-    }
-    
-    private fun updateConnectionUI(connected: Boolean) {
-        connectionDot.setBackgroundResource(
-            if (connected) R.drawable.status_dot_green else R.drawable.status_dot_red
-        )
-        connectButton.text = if (connected) "⚡ DISCONNECT" else "⚡ CONNECT TO MESH ⚡"
-        statusText.text = if (connected) "⚡ CONNECTED" else "○ DISCONNECTED"
-    }
-    
-    private fun updateCounts() {
-        val text = txInput.text.toString().trim()
-        val bytes = text.length / 2
-        val numChunks = if (text.isEmpty()) 0 else (text.length + CHUNK_SIZE - 1) / CHUNK_SIZE
-        charCount.text = "$ytes BYTES"
-        chunkCount.text = "$
-umChunks PACKETS"
-    }
-    
+
     private fun checkPermissions() {
-        val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
-            perms.add(Manifest.permission.BLUETOOTH_SCAN)
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
         }
-        val missing = perms.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), REQUEST_PERMISSIONS)
-        } else {
-            initBluetooth()
         }
     }
-    
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, results)
-        if (requestCode == REQUEST_PERMISSIONS && results.all { it == PackageManager.PERMISSION_GRANTED }) {
-            initBluetooth()
-        } else {
-            log("❌ Permissions denied")
-        }
-    }
-    
-    private fun initBluetooth() {
-        val bm = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bm.adapter
-        if (bluetoothAdapter?.isEnabled == true) {
-            log("✅ Bluetooth ready")
-            statusText.text = "○ TAP SCAN TO FIND MESH"
-        } else {
-            log("⚠️ Enable Bluetooth")
-        }
-    }
-    
+
     private fun startScan() {
         if (isScanning) return
-        devices.clear()
-        updateDeviceSpinner()
-        
-        try {
-            val scanner = bluetoothAdapter?.bluetoothLeScanner ?: return
-            scanner.startScan(scanCallback)
-            isScanning = true
-            log("🔍 Scanning...")
-            statusText.text = "🔍 SCANNING..."
-            scanButton.text = "⟳ ..."
-            
-            handler.postDelayed({
-                try {
-                    scanner.stopScan(scanCallback)
-                } catch (e: SecurityException) {}
-                isScanning = false
-                scanButton.text = "⟳ SCAN"
-                log("🔍 Found ${devices.size} devices")
-                if (devices.isNotEmpty()) {
-                    statusText.text = "✅ ${devices.size} MESH FOUND"
-                }
-            }, 8000)
-        } catch (e: SecurityException) {
-            log("❌ Scan permission denied")
-        }
-    }
-    
-    private fun updateDeviceSpinner() {
-        try {
-            val names = devices.map { it.name ?: it.address }
-            deviceSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, names).apply {
-                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            }
-        } catch (e: SecurityException) {}
-    }
-    
-    private fun toggleConnect() {
-        if (isConnected) {
-            disconnect()
-        } else {
-            connect()
-        }
-    }
-    
-    private fun connect() {
-        val pos = deviceSpinner.selectedItemPosition
-        if (pos < 0 || pos >= devices.size) {
-            log("❌ Select a device")
+
+        val scanner = bluetoothAdapter?.bluetoothLeScanner
+        if (scanner == null) {
+            log("❌ BLE Scanner not available")
             return
         }
+
+        isScanning = true
+        scanButton.text = "SCANNING..."
+        log("🔍 Scanning for Meshtastic devices...")
+
+        val scanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                val device = result.device
+                val name = device.name ?: "Unknown"
+
+                if (name.contains("Meshtastic", ignoreCase = true) ||
+                    result.scanRecord?.serviceUuids?.any { it.uuid == MESHTASTIC_SERVICE_UUID } == true) {
+
+                    log("📡 Found: $name")
+                    stopScan(scanner, this)
+                    connectToDevice(device)
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                log("❌ Scan failed: $errorCode")
+                isScanning = false
+                scanButton.text = "CONNECT"
+            }
+        }
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
         try {
-            log("🔄 Connecting...")
-            statusText.text = "🔄 CONNECTING..."
-            bluetoothGatt = devices[pos].connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            scanner.startScan(null, settings, scanCallback)
+
+            handler.postDelayed({
+                if (isScanning) {
+                    stopScan(scanner, scanCallback)
+                    log("⏱️ Scan timeout - no device found")
+                }
+            }, 15000)
         } catch (e: SecurityException) {
-            log("❌ Connect failed")
+            log("❌ Permission denied for scanning")
+            isScanning = false
         }
     }
-    
+
+    private fun stopScan(scanner: BluetoothLeScanner, callback: ScanCallback) {
+        try {
+            scanner.stopScan(callback)
+        } catch (e: SecurityException) {
+            // Ignore
+        }
+        isScanning = false
+        runOnUiThread {
+            scanButton.text = if (isConnected) "DISCONNECT" else "CONNECT"
+        }
+    }
+
+    private fun connectToDevice(device: BluetoothDevice) {
+        log("🔗 Connecting to ${device.name ?: device.address}...")
+
+        try {
+            bluetoothGatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        } catch (e: SecurityException) {
+            log("❌ Permission denied for connection")
+        }
+    }
+
+    private val gattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            when (newState) {
+                BluetoothProfile.STATE_CONNECTED -> {
+                    runOnUiThread {
+                        log("✅ Connected!")
+                        isConnected = true
+                        updateConnectionUI(true)
+                    }
+                    try {
+                        gatt.discoverServices()
+                    } catch (e: SecurityException) {
+                        runOnUiThread { log("❌ Permission denied") }
+                    }
+                }
+                BluetoothProfile.STATE_DISCONNECTED -> {
+                    runOnUiThread {
+                        log("🔌 Disconnected")
+                        isConnected = false
+                        updateConnectionUI(false)
+                    }
+                }
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                val service = gatt.getService(MESHTASTIC_SERVICE_UUID)
+                if (service != null) {
+                    toRadioCharacteristic = service.getCharacteristic(TORADIO_UUID)
+                    if (toRadioCharacteristic != null) {
+                        runOnUiThread {
+                            log("📻 Meshtastic service ready")
+                            sendButton.isEnabled = true
+                        }
+                    } else {
+                        runOnUiThread { log("❌ ToRadio characteristic not found") }
+                    }
+                } else {
+                    runOnUiThread { log("❌ Meshtastic service not found") }
+                }
+            }
+        }
+
+        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            runOnUiThread {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    log("📤 Chunk sent successfully")
+                } else {
+                    log("❌ Write failed: $status")
+                }
+            }
+        }
+    }
+
+    private fun updateConnectionUI(connected: Boolean) {
+        if (connected) {
+            connectionIndicator.setBackgroundResource(R.drawable.indicator_connected)
+            statusText.text = "MESH CONNECTED"
+            statusText.setTextColor(ContextCompat.getColor(this, R.color.neon_green))
+            scanButton.text = "DISCONNECT"
+            sendButton.isEnabled = true
+        } else {
+            connectionIndicator.setBackgroundResource(R.drawable.indicator_disconnected)
+            statusText.text = "OFFLINE"
+            statusText.setTextColor(ContextCompat.getColor(this, R.color.neon_red))
+            scanButton.text = "CONNECT"
+            sendButton.isEnabled = false
+            toRadioCharacteristic = null
+        }
+    }
+
     private fun disconnect() {
         try {
             bluetoothGatt?.disconnect()
             bluetoothGatt?.close()
-        } catch (e: SecurityException) {}
+        } catch (e: SecurityException) {
+            // Ignore
+        }
         bluetoothGatt = null
         isConnected = false
         updateConnectionUI(false)
-        broadcastButton.isEnabled = false
+        log("🔌 Disconnected from mesh")
     }
-    
-    private fun paste() {
-        val clip = (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
-        clip?.getItemAt(0)?.text?.let {
-            txInput.setText(it)
-            log("📋 Pasted ${it.length} chars")
-            flashInput()
-        }
+
+    private fun updateCounters() {
+        val text = txInput.text.toString()
+        val bytes = text.length
+        val numChunks = if (bytes > 0) ((bytes - 1) / MAX_CHUNK_SIZE) + 1 else 0
+
+        charCount.text = "$bytes BYTES"
+        chunkCount.text = "$numChunks PACKETS"
     }
-    
-    private fun flashInput() {
-        ObjectAnimator.ofFloat(txInput, "alpha", 1f, 0.5f, 1f).apply {
-            duration = 200
-            start()
-        }
-    }
-    
-    private fun clear() {
-        txInput.setText("")
-        log("🗑️ Cleared")
-    }
-    
-    private fun broadcast() {
-        val tx = txInput.text.toString().trim()
-        if (tx.isEmpty()) {
-            log("❌ Empty TX")
+
+    private fun sendTransaction(txHex: String) {
+        if (!isConnected || toRadioCharacteristic == null) {
+            log("❌ Not connected to mesh")
             return
         }
-        if (!isConnected || toRadioChar == null) {
-            log("❌ Not connected")
-            return
-        }
-        
-        // Generate chunks
-        chunks = tx.chunked(CHUNK_SIZE).mapIndexed { i, chunk ->
-            "BTX:${i + 1}/${(tx.length + CHUNK_SIZE - 1) / CHUNK_SIZE}:$chunk"
-        }
-        currentChunk = 0
-        
-        log("📦 ${tx.length} chars → ${chunks.size} packets")
-        log("🚀 BROADCASTING TO MESH...")
-        
-        progressContainer.visibility = View.VISIBLE
-        progressBar.max = chunks.size
+
+        val chunks = txHex.chunked(MAX_CHUNK_SIZE)
+        val totalChunks = chunks.size
+
+        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        log("🚀 BROADCASTING TRANSACTION")
+        log("📊 Size: ${txHex.length} bytes")
+        log("📦 Chunks: $totalChunks packets")
+        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        progressBar.visibility = View.VISIBLE
+        progressBar.max = totalChunks
         progressBar.progress = 0
-        broadcastButton.isEnabled = false
-        broadcastButton.text = "⚡ TRANSMITTING..."
-        
-        // Intense glow animation
-        ValueAnimator.ofFloat(0.4f, 1f).apply {
-            duration = 500
-            repeatCount = chunks.size * 2
-            repeatMode = ValueAnimator.REVERSE
-            addUpdateListener { broadcastGlow.alpha = it.animatedValue as Float }
-            start()
-        }
-        
-        sendNextChunk()
-    }
-    
-    private fun sendNextChunk() {
-        if (currentChunk >= chunks.size) return
-        
-        val chunk = chunks[currentChunk]
-        val char = toRadioChar ?: return
-        val gatt = bluetoothGatt ?: return
-        
-        try {
-            // Build protobuf message
-            val meshPacket = buildMeshPacket(chunk)
-            char.value = meshPacket
-            char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            
-            if (gatt.writeCharacteristic(char)) {
-                log("📤 TX ${currentChunk + 1}/${chunks.size}")
-            } else {
-                log("❌ Write failed")
+        sendButton.isEnabled = false
+
+        Thread {
+            chunks.forEachIndexed { index, chunk ->
+                val message = "BTX:${index + 1}/$totalChunks:$chunk"
+                val sent = sendMeshMessage(message)
+
+                runOnUiThread {
+                    if (sent) {
+                        log("📡 [${index + 1}/$totalChunks] Transmitted")
+                    } else {
+                        log("❌ [${index + 1}/$totalChunks] Failed")
+                    }
+                    progressBar.progress = index + 1
+                }
+
+                Thread.sleep(500)
             }
+
+            runOnUiThread {
+                log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                log("✅ BROADCAST COMPLETE")
+                log("⚡ TX relayed to LoRa mesh!")
+                log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                progressBar.visibility = View.GONE
+                sendButton.isEnabled = true
+                flashSuccess()
+            }
+        }.start()
+    }
+
+    private fun sendMeshMessage(message: String): Boolean {
+        val characteristic = toRadioCharacteristic ?: return false
+        val gatt = bluetoothGatt ?: return false
+
+        try {
+            val toRadioBytes = buildToRadioPacket(message)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                gatt.writeCharacteristic(characteristic, toRadioBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            } else {
+                @Suppress("DEPRECATION")
+                characteristic.value = toRadioBytes
+                @Suppress("DEPRECATION")
+                gatt.writeCharacteristic(characteristic)
+            }
+            return true
+        } catch (e: SecurityException) {
+            runOnUiThread { log("❌ Permission denied for write") }
+            return false
         } catch (e: Exception) {
-            log("❌ Error: ${e.message}")
+            runOnUiThread { log("❌ Error: ${e.message}") }
+            return false
         }
     }
-    
-    private fun buildMeshPacket(text: String): ByteArray {
-        // Simple ToRadio packet with text message
-        // This is a simplified version - full implementation would use generated protobuf
-        val textBytes = text.toByteArray(Charsets.UTF_8)
-        
-        // Build Data message (portnum=1 for TEXT_MESSAGE_APP)
-        val data = mutableListOf<Byte>()
-        data.add(0x08) // field 1 (portnum)
-        data.add(0x01) // TEXT_MESSAGE_APP = 1
-        data.add(0x12) // field 2 (payload)
-        data.add(textBytes.size.toByte())
-        data.addAll(textBytes.toList())
-        
+
+    private fun buildToRadioPacket(message: String): ByteArray {
+        // Simplified protobuf-like packet for TEXT_MESSAGE
+        // Field 1: packet (wire type 2 = length-delimited)
+        // Nested: to=0xFFFFFFFF (broadcast), decoded.portnum=1 (TEXT_MESSAGE), decoded.payload
+
+        val payload = message.toByteArray(Charsets.UTF_8)
+
+        // Build inner decoded message
+        val decoded = ByteArrayOutputStream()
+        // portnum = 1 (TEXT_MESSAGE_APP)
+        decoded.write(0x08) // Field 1, varint
+        decoded.write(0x01) // Value 1
+        // payload
+        decoded.write(0x12) // Field 2, length-delimited
+        writeVarint(decoded, payload.size)
+        decoded.write(payload)
+
+        val decodedBytes = decoded.toByteArray()
+
         // Build MeshPacket
-        val packet = mutableListOf<Byte>()
-        packet.add(0x08) // field 1 (from) - will be set by radio
-        packet.add(0x00)
-        packet.add(0x10) // field 2 (to) - broadcast
-        packet.addAll(listOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()))
-        packet.add(0x2A) // field 5 (decoded Data)
-        packet.add(data.size.toByte())
-        packet.addAll(data)
-        packet.add(0x38) // field 7 (hop_limit)
-        packet.add(0x03) // 3 hops
-        
+        val meshPacket = ByteArrayOutputStream()
+        // to = broadcast (0xFFFFFFFF)
+        meshPacket.write(0x10) // Field 2, varint
+        writeVarint(meshPacket, 0xFFFFFFFF.toInt())
+        // decoded (field 6)
+        meshPacket.write(0x32) // Field 6, length-delimited
+        writeVarint(meshPacket, decodedBytes.size)
+        meshPacket.write(decodedBytes)
+
+        val meshPacketBytes = meshPacket.toByteArray()
+
         // Build ToRadio
-        val toRadio = mutableListOf<Byte>()
-        toRadio.add(0x0A) // field 1 (packet)
-        toRadio.add(packet.size.toByte())
-        toRadio.addAll(packet)
-        
+        val toRadio = ByteArrayOutputStream()
+        // packet (field 1)
+        toRadio.write(0x0A) // Field 1, length-delimited
+        writeVarint(toRadio, meshPacketBytes.size)
+        toRadio.write(meshPacketBytes)
+
         return toRadio.toByteArray()
     }
-    
-    private fun updateProgress() {
-        progressBar.progress = currentChunk
-        progressText.text = "TRANSMITTING $currentChunk/${chunks.size}"
+
+    private fun writeVarint(stream: ByteArrayOutputStream, value: Int) {
+        var v = value
+        while (v and 0x7F.inv() != 0) {
+            stream.write((v and 0x7F) or 0x80)
+            v = v ushr 7
+        }
+        stream.write(v and 0x7F)
     }
-    
-    private fun onTransmitComplete() {
-        log("✅ TX BROADCAST COMPLETE!")
-        log("⚡ ${chunks.size} packets sent to mesh")
-        statusText.text = "✅ BROADCAST COMPLETE"
-        progressContainer.visibility = View.GONE
-        broadcastButton.isEnabled = true
-        broadcastButton.text = "⚡ BROADCAST TO BITCOIN NETWORK ⚡"
-        
-        // Success flash
-        ObjectAnimator.ofArgb(broadcastButton, "textColor", 
-            Color.WHITE, Color.parseColor("#00FF88"), Color.WHITE).apply {
-            duration = 1000
+
+    private fun flashSuccess() {
+        val originalColor = ContextCompat.getColor(this, R.color.neon_orange)
+        val successColor = ContextCompat.getColor(this, R.color.neon_green)
+
+        ValueAnimator.ofArgb(successColor, originalColor).apply {
+            duration = 1500
+            addUpdateListener { animator ->
+                sendButton.setBackgroundColor(animator.animatedValue as Int)
+            }
             start()
         }
     }
-    
-    private fun log(msg: String) {
-        val ts = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+
+    private fun log(message: String) {
         runOnUiThread {
-            logText.append("[$	s] $msg\n")
-            logScroll.fullScroll(View.FOCUS_DOWN)
+            val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            logView.append("[$timestamp] $message\n")
+            scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
         }
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
+        pulseAnimator1?.cancel()
+        pulseAnimator2?.cancel()
+        glowAnimator?.cancel()
         disconnect()
     }
 }
 
-
-
+class ByteArrayOutputStream : java.io.ByteArrayOutputStream()
