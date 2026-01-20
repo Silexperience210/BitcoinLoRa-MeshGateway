@@ -449,6 +449,23 @@ class BitcoinMeshGateway:
             portnum = decoded.get("portnum")
             sender = packet.get("fromId", "unknown")
             
+            # DEBUG - voir tous les paquets
+            self.log(f"RECV portnum={portnum} from={sender}", "info")
+            if decoded:
+                txt = decoded.get('text', '')
+                pld = decoded.get('payload', None)
+                if txt:
+                    self.log(f"  -> TEXT: {txt[:80]}...", "warning")
+                if pld:
+                    if isinstance(pld, bytes):
+                        try:
+                            decoded_str = pld.decode('utf-8')
+                            self.log(f"  -> PAYLOAD(bytes decoded): {decoded_str[:80]}...", "warning")
+                        except:
+                            self.log(f"  -> PAYLOAD(raw bytes): {len(pld)} bytes", "warning")
+                    else:
+                        self.log(f"  -> PAYLOAD: {str(pld)[:80]}", "warning")
+
             # Mode PRIVATE_APP - protocole chunké BitcoinTx
             if portnum == "PRIVATE_APP":
                 payload = decoded.get("payload", b"")
