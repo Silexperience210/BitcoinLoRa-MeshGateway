@@ -1,4 +1,4 @@
-name: Android Build
+name: Android Build & Release
 
 on:
   push:
@@ -18,27 +18,73 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Setup Gradle (no cache)
+    - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
         cache-disabled: true
       
-    - name: Run build
+    - name: Build APK
       working-directory: ./android
-      run: |
-        echo "=== Starting build ==="
-        gradle assembleDebug --stacktrace --info 2>&1 || true
-        echo "=== Build finished ==="
+      run: gradle assembleDebug
         
-    - name: Check for APK
-      run: |
-        echo "=== Looking for APK ==="
-        find . -name "*.apk" -type f || echo "No APK found"
-        
-    - name: Upload APK
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
-      if: always()
       with:
-        name: app-debug
+        name: BitcoinMesh-APK
         path: android/app/build/outputs/apk/debug/app-debug.apk
-        if-no-files-found: warn
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Download APK
+      uses: actions/download-artifact@v4
+      with:
+        name: BitcoinMesh-APK
+        
+    - name: Rename APK
+      run: mv app-debug.apk BitcoinMesh-v1.0.0.apk
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v1.0.0
+        name: "📱 BitcoinMesh v1.0.0"
+        body: |
+          ## 📱 BitcoinMesh Android App
+          
+          **Broadcast Bitcoin transactions over LoRa mesh network**
+          
+          ### 📥 Installation
+          1. Download `BitcoinMesh-v1.0.0.apk` below
+          2. Enable "Unknown Sources" on Android
+          3. Install the APK
+          4. Grant Bluetooth permissions
+          
+          ### ✨ Features
+          - 🌑 Dark theme with orange neon accents
+          - ⚡ Direct Bluetooth connection to T-Beam
+          - 📦 Auto-chunking (190 chars per chunk)
+          - 📊 Real-time progress tracking
+          - 🔄 3-second delay between chunks
+          
+          ### 📋 Requirements
+          - Android 8.0+ (API 26)
+          - T-Beam with Meshtastic + BitcoinTxModule firmware
+          
+          ### 🚀 Usage
+          1. Pair T-Beam in Android Bluetooth settings
+          2. Open BitcoinMesh app
+          3. Select T-Beam from dropdown
+          4. Paste your signed Bitcoin transaction (hex)
+          5. Tap ⚡ ENVOYER
+          
+          ---
+          **By [Silexperience](https://github.com/Silexperience210) & [@ProfEduStream](https://github.com/ProfEduStream)** 🎓
+        files: BitcoinMesh-v1.0.0.apk
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
