@@ -19,44 +19,55 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
         
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+        
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Debug - List files
-      run: |
-        echo "=== Root ===" 
-        ls -la
-        echo "=== Android ===" 
-        ls -la android/
-        echo "=== App ===" 
-        ls -la android/app/ || echo "No app dir"
-        
-    - name: Create Gradle Wrapper
-      run: |
-        cd android
-        gradle wrapper --gradle-version 8.4
-        chmod +x gradlew
-        
-    - name: Debug - Check gradlew
-      run: |
-        cd android
-        ls -la gradlew
-        ./gradlew --version
-        
     - name: Build APK
       run: |
         cd android
-        ./gradlew assembleDebug --info 2>&1 | tail -100
+        gradle assembleDebug --no-daemon --stacktrace
         
-    - name: Debug - Find APK
-      run: |
-        find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+    - name: Find APK
+      run: find . -name "*.apk" -type f
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: BitcoinMesh
-        path: |
-          android/app/build/outputs/apk/debug/*.apk
-          android/app/build/outputs/apk/release/*.apk
+        name: BitcoinMesh-APK
+        path: android/app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: warn
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download APK
+      uses: actions/download-artifact@v4
+      with:
+        name: BitcoinMesh-APK
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v1.0.0
+        name: BitcoinMesh v1.0.0
+        body: |
+          ## 📱 BitcoinMesh Android APK
+          
+          Download `app-debug.apk` and install on your Android device.
+          
+          ### Features
+          - 🌑 Dark neon UI
+          - ⚡ Bluetooth to T-Beam LoRa
+          - 📦 Auto-chunking for Bitcoin TX
+        files: app-debug.apk
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
