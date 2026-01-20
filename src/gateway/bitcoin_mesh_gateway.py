@@ -483,16 +483,38 @@ class BitcoinMeshGateway:
         # Nettoyer le texte (enlever espaces, 0x, etc.)
         clean_hex = text.replace(" ", "").replace("0x", "").replace("\n", "").replace("\r", "")
         
+        # Commande spéciale: "RESET" pour vider le buffer
+        if text.upper() == "RESET":
+            if sender in self.text_buffers:
+                del self.text_buffers[sender]
+                self.log(f"🗑️ Buffer vidé pour {sender}", "warning")
+            return
+        
         # Vérifier que c'est bien du hex
         if not all(c in '0123456789abcdefABCDEF' for c in clean_hex):
             self.log(f"📨 Message texte de {sender}: {text[:50]}...", "info")
             return
         
-        # C'est du hex! Ajouter au buffer de ce sender
+        # C'est du hex! Vérifier le timeout du buffer existant (60 secondes)
+        if sender in self.text_buffers:
+            buffer = self.text_buffers[sender]
+            if time.time() - buffer["last_time"] > 60:
+                self.log(f"⏰ Buffer expiré pour {sender}, réinitialisation", "warning")
+                del self.text_buffers[sender]
+        
+        # Créer ou récupérer le buffer
         if sender not in self.text_buffers:
-            self.text_buffers[sender] = {"parts": [], "last_time": time.time()}
+            self.text_buffers[sender] = {"parts": [], "last_time": time.time(), "tx_start": clean_hex[:8]}
         
         buffer = self.text_buffers[sender]
+        
+        # Vérifier si c'est une nouvelle TX (commence différemment)
+        # Si le premier morceau commence par 01 ou 02 (version), c'est peut-être une nouvelle TX
+        if len(buffer["parts"]) > 0 and (clean_hex.startswith('01000000') or clean_hex.startswith('02000000')):
+            self.log(f"🔄 Nouvelle TX détectée pour {sender}, réinitialisation du buffer", "warning")
+            buffer["parts"] = []
+            buffer["tx_start"] = clean_hex[:8]
+        
         buffer["parts"].append(clean_hex)
         buffer["last_time"] = time.time()
         
