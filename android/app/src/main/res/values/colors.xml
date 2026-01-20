@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#0a0a0f</color>
+    <color name="bg_card">#12121a</color>
+    <color name="bg_input">#1a1a25</color>
+    <color name="orange_neon">#ff6b00</color>
+    <color name="orange_glow">#ff8c00</color>
+    <color name="text_white">#ffffff</color>
+    <color name="text_gray">#888899</color>
+    <color name="green_success">#00ff88</color>
+    <color name="red_error">#ff4444</color>
+</resources>

@@ -1,0 +1,53 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Bitcoin B symbol with LoRa waves - Orange Neon -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M54,24 L54,84 M42,54 L66,54"
+        android:strokeWidth="4"
+        android:strokeColor="#FF6B00"/>
+    
+    <!-- Bitcoin B -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M45,30 L45,78 L58,78 C68,78 72,72 72,66 C72,60 68,56 62,55 C67,54 70,50 70,44 C70,36 65,30 55,30 L45,30 Z M52,38 L55,38 C59,38 62,40 62,44 C62,48 59,50 55,50 L52,50 L52,38 Z M52,56 L57,56 C62,56 65,59 65,64 C65,69 62,72 57,72 L52,72 L52,56 Z"/>
+    
+    <!-- LoRa waves right -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF6B00"
+        android:strokeWidth="2"
+        android:pathData="M76,44 Q82,54 76,64"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF8C33"
+        android:strokeWidth="2"
+        android:pathData="M82,38 Q92,54 82,70"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFAD66"
+        android:strokeWidth="2"
+        android:pathData="M88,32 Q102,54 88,76"/>
+    
+    <!-- LoRa waves left -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF6B00"
+        android:strokeWidth="2"
+        android:pathData="M32,44 Q26,54 32,64"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF8C33"
+        android:strokeWidth="2"
+        android:pathData="M26,38 Q16,54 26,70"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFAD66"
+        android:strokeWidth="2"
+        android:pathData="M20,32 Q6,54 20,76"/>
+    
+</vector>

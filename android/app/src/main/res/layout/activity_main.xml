@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0a0a0f"
+    android:padding="16dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ BitcoinMesh"
+            android:textColor="#ff6b00"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Broadcast Bitcoin over LoRa"
+            android:textColor="#888899"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Device Selection -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="12dp">
+
+        <Spinner
+            android:id="@+id/deviceSpinner"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="@drawable/spinner_bg"
+            android:popupBackground="#1a1a25"
+            android:padding="8dp" />
+
+        <Button
+            android:id="@+id/refreshButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:text="🔄"
+            android:textSize="18sp"
+            android:background="@drawable/button_neon"
+            android:textColor="#ff6b00" />
+    </LinearLayout>
+
+    <!-- TX Input -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="📝 Transaction Bitcoin (hex)"
+        android:textColor="#ff6b00"
+        android:textSize="14sp"
+        android:paddingBottom="8dp" />
+
+    <EditText
+        android:id="@+id/txInput"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/input_bg"
+        android:textColor="#ffffff"
+        android:textColorHint="#555566"
+        android:hint="Collez votre transaction signée ici..."
+        android:gravity="top"
+        android:padding="12dp"
+        android:inputType="textMultiLine"
+        android:scrollbars="vertical"
+        android:textSize="12sp"
+        android:fontFamily="monospace" />
+
+    <!-- Char Counter -->
+    <TextView
+        android:id="@+id/chunkProgress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="0 caractères | 0 parties"
+        android:textColor="#888899"
+        android:textSize="12sp"
+        android:gravity="end"
+        android:paddingTop="4dp"
+        android:paddingBottom="8dp" />
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="12dp">
+
+        <Button
+            android:id="@+id/pasteButton"
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1"
+            android:text="📋 COLLER"
+            android:textColor="#ff6b00"
+            android:textSize="12sp"
+            android:background="@drawable/button_neon"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/sendButton"
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1.5"
+            android:text="⚡ ENVOYER"
+            android:textColor="#ff6b00"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/button_neon_primary"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/clearButton"
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1"
+            android:text="🗑️ EFFACER"
+            android:textColor="#ff6b00"
+            android:textSize="12sp"
+            android:background="@drawable/button_neon"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- Progress -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:visibility="gone"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:progressTint="#ff6b00"
+        android:progressBackgroundTint="#1a1a25" />
+
+    <!-- Status -->
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="✅ Prêt - Sélectionnez votre T-Beam"
+        android:textColor="#00ff88"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
+
+    <!-- Log -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="📋 Journal"
+        android:textColor="#ff6b00"
+        android:textSize="12sp"
+        android:paddingBottom="4dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="@drawable/input_bg">
+
+        <TextView
+            android:id="@+id/logText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#888899"
+            android:textSize="10sp"
+            android:padding="8dp"
+            android:fontFamily="monospace" />
+    </ScrollView>
+
+    <!-- Footer -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Created by Silexperience &amp; ProfEduStream"
+        android:textColor="#444455"
+        android:textSize="10sp"
+        android:gravity="center"
+        android:paddingTop="8dp" />
+
+</LinearLayout>
