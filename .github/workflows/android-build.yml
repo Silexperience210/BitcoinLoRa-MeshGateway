@@ -24,15 +24,15 @@ jobs:
         gradle-version: '8.4'
         cache-disabled: true
 
-    - name: Build APK
+    - name: Build Debug APK (signed)
       working-directory: ./android
-      run: gradle assembleRelease --no-daemon
+      run: gradle assembleDebug --no-daemon
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: BitcoinMesh-APK
-        path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
 
   release:
     needs: build
@@ -47,7 +47,7 @@ jobs:
         name: BitcoinMesh-APK
 
     - name: Rename APK
-      run: mv app-release-unsigned.apk BitcoinMesh-v2.0-NEON.apk
+      run: mv app-debug.apk BitcoinMesh-v2.0-NEON.apk
 
     - name: Delete old release
       run: |
@@ -64,40 +64,32 @@ jobs:
         name: "⚡ BitcoinMesh v2.0 NEON"
         body: |
           ## ⚡ BitcoinMesh v2.0 NEON
-          
-          **🔥 COMPLETE REWRITE - Direct BLE Connection!**
-          
-          ### 🆕 What's New
-          - 📡 **Direct BLE** - No more Bluetooth SPP issues!
-          - 🎨 **Futuristic UI** - Cyberpunk dark theme
-          - ⚡ **Pulse animations** - Neon glow effects
-          - 📦 **Protobuf encoding** - Native Meshtastic protocol
+
+          **🔥 Direct BLE Connection to Meshtastic!**
+
+          ### 🆕 Features
+          - 📡 **Direct BLE** - Connects directly to T-Beam
+          - 🎨 **Cyberpunk UI** - Dark theme with neon effects
+          - ⚡ **Pulse animations** - Animated glow effects
+          - 📦 **Auto-chunking** - Splits TX into 190-byte packets
           - 🔄 **Real-time progress** - See each packet transmit
-          
-          ### ✨ UI Features
-          - 🌑 Deep black background with orange neon accents
-          - 💫 Animated pulse rings around logo
-          - 🔮 Glass panels with holographic borders
-          - 💻 Terminal-style log output
-          - 🔥 Intense glow on broadcast button
-          - 📊 Neon progress bar
-          
+
           ### 📥 Installation
-          1. Download BitcoinMesh-v2.0-NEON.apk
+          1. Download **BitcoinMesh-v2.0-NEON.apk**
           2. Enable "Unknown Sources" on Android
           3. Install & grant Bluetooth permissions
-          4. Scan for your T-Beam
-          5. Connect & broadcast!
-          
+          4. Open app and tap SCAN
+          5. Connect to your T-Beam
+          6. Paste TX hex and BROADCAST!
+
           ### 📋 Requirements
           - Android 8.0+ (API 26)
           - T-Beam with Meshtastic firmware
-          - Gateway running on PC
-          
+          - Bluetooth enabled
+
           ---
-          **⚡ By [Silexperience](https://github.com/Silexperience210) & [@ProfEduStream](https://github.com/ProfEduStream)** 🎓
+          **⚡ By [Silexperience210](https://github.com/Silexperience210) & [@ProfEduStream](https://github.com/ProfEduStream)** 🎓
         files: BitcoinMesh-v2.0-NEON.apk
         make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
