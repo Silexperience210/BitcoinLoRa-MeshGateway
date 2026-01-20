@@ -50,6 +50,11 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var writeQueue = mutableListOf<ByteArray>()
     private var isWriting = false
+    
+    // Synchronization for BLE writes
+    private val writeLock = Object()
+    private var writeCompleted = false
+    private var lastWriteSuccess = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -298,6 +303,12 @@ class MainActivity : AppCompatActivity() {
                     log("❌ Write failed: $status")
                 }
             }
+            // Signal that write is complete
+            synchronized(writeLock) {
+                writeCompleted = true
+                lastWriteSuccess = (status == BluetoothGatt.GATT_SUCCESS)
+                writeLock.notifyAll()
+            }
             // Process next in queue
             isWriting = false
             processWriteQueue()
@@ -374,12 +385,41 @@ class MainActivity : AppCompatActivity() {
                 val chunkNum = i + 1
                 runOnUiThread { log("📡 [$chunkNum/$totalChunks] Sending...") }
                 
-                // Send packet from local list (not writeQueue!)
+                // Reset completion flag before sending
+                synchronized(writeLock) {
+                    writeCompleted = false
+                    lastWriteSuccess = false
+                }
+                
+                // Send packet from local list
                 val packet = packets[i]
                 sendPacket(packet)
                 
-                // Wait for BLE write to complete
-                Thread.sleep(1000)
+                // Wait for BLE write callback with timeout
+                val success = synchronized(writeLock) {
+                    val startTime = System.currentTimeMillis()
+                    while (!writeCompleted && (System.currentTimeMillis() - startTime) < 5000) {
+                        try {
+                            writeLock.wait(100)
+                        } catch (e: InterruptedException) {
+                            break
+                        }
+                    }
+                    writeCompleted && lastWriteSuccess
+                }
+                
+                if (!success) {
+                    runOnUiThread { log("⚠️ Chunk $chunkNum may have failed, retrying...") }
+                    // Retry once
+                    synchronized(writeLock) {
+                        writeCompleted = false
+                    }
+                    sendPacket(packet)
+                    Thread.sleep(2000)
+                }
+                
+                // Additional delay between packets for mesh stability
+                Thread.sleep(2000)
                 
                 runOnUiThread { progressBar.progress = chunkNum }
             }
