@@ -77,3 +77,4 @@ Le T-Beam reçoit les messages et les transmet sur le mesh LoRa via le module `B
 ## 📄 License
 
 MIT - By @ProfEduStream / Silexperience
+# Auto-build trigger
