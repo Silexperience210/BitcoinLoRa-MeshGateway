@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Android CI
 
 on:
   push:
@@ -10,10 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -24,97 +23,56 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Create local.properties
+    - name: Grant execute permission for gradlew
+      working-directory: ./android
       run: |
-        cd android
-        echo "sdk.dir=$ANDROID_HOME" > local.properties
+        if [ ! -f gradlew ]; then
+          gradle wrapper
+        fi
+        chmod +x gradlew
 
-    - name: Generate Gradle Wrapper
-      run: |
-        cd android
-        gradle wrapper --gradle-version 8.4
+    - name: Build with Gradle
+      working-directory: ./android
+      run: ./gradlew assembleDebug --stacktrace
+      env:
+        ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
-    - name: Build Debug APK
-      run: |
-        cd android
-        ./gradlew assembleDebug --no-daemon --stacktrace
-
-    - name: List APK files
-      run: |
-        find android -name "*.apk" -type f
-
-    - name: Upload Debug APK
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: BitcoinMesh-debug-apk
-        path: android/app/build/outputs/apk/debug/*.apk
-        retention-days: 90
-        if-no-files-found: error
+        name: BitcoinMesh-APK
+        path: android/app/build/outputs/apk/debug/app-debug.apk
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
-    
+
     steps:
-    - name: Download Debug APK
-      uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v4
       with:
-        name: BitcoinMesh-debug-apk
-        path: ./apk
+        name: BitcoinMesh-APK
 
-    - name: Get current date
+    - name: Get date
       id: date
-      run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
-
-    - name: Rename APK
-      run: |
-        cd apk
-        mv *.apk BitcoinMesh-v1.0.0.apk 2>/dev/null || true
+      run: echo "date=$(date +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.0-${{ steps.date.outputs.date }}
-        name: "📱 BitcoinMesh APK v1.0.0"
+        tag_name: v1.0.${{ steps.date.outputs.date }}
+        name: BitcoinMesh v1.0
         body: |
-          ## 📱 BitcoinMesh Android App
+          ## 📱 BitcoinMesh Android APK
           
-          **Dark Neon Edition** - Direct Bluetooth to LoRa
+          Download and install `app-debug.apk`
           
-          ### 📥 Installation
-          1. Download `BitcoinMesh-v1.0.0.apk` below
-          2. Enable "Unknown Sources" on your Android device
-          3. Install the APK
-          4. Grant Bluetooth permissions when prompted
-          
-          ### ✨ Features
-          - 🌑 Dark theme with orange neon accents
-          - ⚡ Direct Bluetooth SPP connection to T-Beam
-          - 📦 Auto-chunking of Bitcoin transactions (190 chars/chunk)
-          - 📊 Real-time progress tracking
-          - 🔄 3-second delay between chunks for LoRa reliability
-          
-          ### 📋 Requirements
-          - Android 8.0+ (API 26)
-          - Paired T-Beam with Meshtastic + BitcoinTxModule firmware
-          
-          ### 🚀 Usage
-          1. Pair T-Beam in Android Bluetooth settings
-          2. Open BitcoinMesh app
-          3. Select T-Beam from dropdown
-          4. Tap "Connecter"
-          5. Paste your signed Bitcoin transaction (hex)
-          6. Tap "⚡ ENVOYER SUR LORA"
-          
-          ---
-          *Built from commit ${{ github.sha }}*
-          
-          **By [Silexperience](https://github.com/Silexperience210) with [@ProfEduStream](https://github.com/ProfEduStream)** 🎓
-        files: ./apk/*.apk
-        draft: false
-        prerelease: false
+          ### Features
+          - Dark neon UI
+          - Bluetooth to T-Beam
+          - Auto-chunking for LoRa
+        files: app-debug.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
