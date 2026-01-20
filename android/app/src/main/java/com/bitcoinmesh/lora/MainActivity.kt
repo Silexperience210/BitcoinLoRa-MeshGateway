@@ -423,23 +423,19 @@ class MainActivity : AppCompatActivity() {
     /**
      * Build a proper Meshtastic ToRadio protobuf packet
      * 
-     * ToRadio {
-     *   packet: MeshPacket {  // field 1
-     *     to: 0xFFFFFFFF     // field 2 - broadcast
-     *     channel: 0         // field 3 - primary channel
-     *     decoded: Data {    // field 5 (NOT 6!)
-     *       portnum: 1       // TEXT_MESSAGE_APP
-     *       payload: bytes
-     *     }
-     *     want_ack: true     // field 6
-     *     hop_limit: 3       // field 11
-     *   }
-     * }
+     * CORRECT FIELD NUMBERS (from mesh.pb.h):
+     * - MeshPacket.from = 1 (fixed32)
+     * - MeshPacket.to = 2 (fixed32)  
+     * - MeshPacket.channel = 3 (uint8)
+     * - MeshPacket.decoded = 4 (Data message)
+     * - MeshPacket.id = 6 (fixed32)
+     * - MeshPacket.hop_limit = 9 (varint)
+     * - MeshPacket.want_ack = 10 (bool)
      */
     private fun buildToRadioPacket(message: String): ByteArray {
         val payload = message.toByteArray(Charsets.UTF_8)
 
-        // Build Data message
+        // Build Data message (inner payload)
         val data = ByteArrayOutputStream()
         // portnum = 1 (TEXT_MESSAGE_APP) - field 1, varint
         data.write(0x08)  // (1 << 3) | 0 = 0x08
@@ -453,37 +449,40 @@ class MainActivity : AppCompatActivity() {
         // Build MeshPacket
         val meshPacket = ByteArrayOutputStream()
         
-        // to = 0xFFFFFFFF (broadcast) - field 2, varint
-        meshPacket.write(0x10)  // (2 << 3) | 0 = 0x10
-        // Write 0xFFFFFFFF as unsigned varint (5 bytes for 32-bit max)
+        // to = 0xFFFFFFFF (broadcast) - field 2, FIXED32 (wire type 5)
+        meshPacket.write(0x15)  // (2 << 3) | 5 = 0x15 (fixed32)
+        // 4 bytes little-endian for 0xFFFFFFFF
         meshPacket.write(0xFF)
         meshPacket.write(0xFF)
         meshPacket.write(0xFF)
         meshPacket.write(0xFF)
-        meshPacket.write(0x0F)
         
-        // channel = 0 - field 3, varint (optional, 0 is default)
-        meshPacket.write(0x18)  // (3 << 3) | 0 = 0x18
-        meshPacket.write(0x00)
-        
-        // decoded = Data - field 5, length-delimited (NOT field 6!)
-        meshPacket.write(0x2A)  // (5 << 3) | 2 = 0x2A
+        // decoded = Data - field 4, length-delimited (wire type 2)
+        meshPacket.write(0x22)  // (4 << 3) | 2 = 0x22
         writeVarint(meshPacket, dataBytes.size)
         meshPacket.write(dataBytes)
         
-        // want_ack = true - field 6, varint
-        meshPacket.write(0x30)  // (6 << 3) | 0 = 0x30
-        meshPacket.write(0x01)  // true
+        // id = random packet ID - field 6, FIXED32 (wire type 5)
+        val packetId = (System.currentTimeMillis() and 0xFFFFFFFF).toInt()
+        meshPacket.write(0x35)  // (6 << 3) | 5 = 0x35 (fixed32)
+        meshPacket.write(packetId and 0xFF)
+        meshPacket.write((packetId shr 8) and 0xFF)
+        meshPacket.write((packetId shr 16) and 0xFF)
+        meshPacket.write((packetId shr 24) and 0xFF)
         
-        // hop_limit = 6 - field 11, varint
-        meshPacket.write(0x58)  // (11 << 3) | 0 = 0x58
+        // hop_limit = 6 - field 9, varint (wire type 0)
+        meshPacket.write(0x48)  // (9 << 3) | 0 = 0x48
         meshPacket.write(0x06)  // value = 6
+        
+        // want_ack = true - field 10, varint (wire type 0)
+        meshPacket.write(0x50)  // (10 << 3) | 0 = 0x50
+        meshPacket.write(0x01)  // true
         
         val meshPacketBytes = meshPacket.toByteArray()
 
-        // Build ToRadio
+        // Build ToRadio wrapper
         val toRadio = ByteArrayOutputStream()
-        // packet - field 1, length-delimited
+        // packet - field 1, length-delimited (wire type 2)
         toRadio.write(0x0A)  // (1 << 3) | 2 = 0x0A
         writeVarint(toRadio, meshPacketBytes.size)
         toRadio.write(meshPacketBytes)
