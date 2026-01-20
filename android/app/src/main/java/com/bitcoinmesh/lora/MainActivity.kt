@@ -360,29 +360,28 @@ class MainActivity : AppCompatActivity() {
         progressBar.progress = 0
         broadcastButton.isEnabled = false
 
-        // Queue all messages
-        writeQueue.clear()
-        chunks.forEachIndexed { index, chunk ->
-            val message = "BTX:${index + 1}/$totalChunks:$chunk"
+        // Build all packets FIRST into a local list (avoid modification during iteration)
+        val packets = ArrayList<ByteArray>(totalChunks)
+        for (i in 0 until totalChunks) {
+            val message = "BTX:${i + 1}/$totalChunks:${chunks[i]}"
             val packet = buildToRadioPacket(message)
-            writeQueue.add(packet)
+            packets.add(packet)
         }
 
-        // Start sending
+        // Start sending from the local list
         Thread {
-            var sentCount = 0
-            chunks.forEachIndexed { index, _ ->
-                runOnUiThread { log("📡 [${index + 1}/$totalChunks] Sending...") }
+            for (i in 0 until totalChunks) {
+                val chunkNum = i + 1
+                runOnUiThread { log("📡 [$chunkNum/$totalChunks] Sending...") }
                 
-                // Send packet
-                val packet = writeQueue[index]
+                // Send packet from local list (not writeQueue!)
+                val packet = packets[i]
                 sendPacket(packet)
                 
                 // Wait for BLE write to complete
-                Thread.sleep(800)
+                Thread.sleep(1000)
                 
-                sentCount++
-                runOnUiThread { progressBar.progress = sentCount }
+                runOnUiThread { progressBar.progress = chunkNum }
             }
 
             runOnUiThread {
