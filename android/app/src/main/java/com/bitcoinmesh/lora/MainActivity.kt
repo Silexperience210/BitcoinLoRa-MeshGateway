@@ -16,31 +16,27 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
-    // Meshtastic BLE UUIDs
     companion object {
         val MESHTASTIC_SERVICE_UUID: UUID = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
         val TORADIO_UUID: UUID = UUID.fromString("f75c76d2-129e-4dad-a1dd-7866124401e7")
-        val FROMRADIO_UUID: UUID = UUID.fromString("2c55e69e-4993-11ed-b878-0242ac120002")
         const val MAX_CHUNK_SIZE = 190
         const val REQUEST_PERMISSIONS = 1001
     }
 
-    // UI Elements
+    // UI Elements - IDs match activity_main.xml
     private lateinit var statusText: TextView
     private lateinit var txInput: EditText
-    private lateinit var sendButton: Button
+    private lateinit var broadcastButton: Button
     private lateinit var scanButton: Button
-    private lateinit var logView: TextView
-    private lateinit var scrollView: ScrollView
+    private lateinit var logText: TextView
+    private lateinit var logScroll: ScrollView
     private lateinit var charCount: TextView
     private lateinit var chunkCount: TextView
-    private lateinit var connectionIndicator: View
+    private lateinit var connectionDot: View
     private lateinit var pulseRing1: View
     private lateinit var pulseRing2: View
     private lateinit var progressBar: ProgressBar
@@ -56,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     // Animations
     private var pulseAnimator1: ObjectAnimator? = null
     private var pulseAnimator2: ObjectAnimator? = null
-    private var glowAnimator: ValueAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,18 +71,18 @@ class MainActivity : AppCompatActivity() {
     private fun initViews() {
         statusText = findViewById(R.id.statusText)
         txInput = findViewById(R.id.txInput)
-        sendButton = findViewById(R.id.sendButton)
+        broadcastButton = findViewById(R.id.broadcastButton)
         scanButton = findViewById(R.id.scanButton)
-        logView = findViewById(R.id.logView)
-        scrollView = findViewById(R.id.scrollView)
+        logText = findViewById(R.id.logText)
+        logScroll = findViewById(R.id.logScroll)
         charCount = findViewById(R.id.charCount)
         chunkCount = findViewById(R.id.chunkCount)
-        connectionIndicator = findViewById(R.id.connectionIndicator)
+        connectionDot = findViewById(R.id.connectionDot)
         pulseRing1 = findViewById(R.id.pulseRing1)
         pulseRing2 = findViewById(R.id.pulseRing2)
         progressBar = findViewById(R.id.progressBar)
 
-        sendButton.isEnabled = false
+        broadcastButton.isEnabled = false
         progressBar.visibility = View.GONE
     }
 
@@ -114,7 +109,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        sendButton.setOnClickListener {
+        broadcastButton.setOnClickListener {
             val txHex = txInput.text.toString().trim()
             if (txHex.isNotEmpty()) {
                 sendTransaction(txHex)
@@ -230,7 +225,7 @@ class MainActivity : AppCompatActivity() {
             override fun onScanFailed(errorCode: Int) {
                 log("❌ Scan failed: $errorCode")
                 isScanning = false
-                scanButton.text = "CONNECT"
+                scanButton.text = "⟳ SCAN"
             }
         }
 
@@ -261,7 +256,7 @@ class MainActivity : AppCompatActivity() {
         }
         isScanning = false
         runOnUiThread {
-            scanButton.text = if (isConnected) "DISCONNECT" else "CONNECT"
+            scanButton.text = if (isConnected) "DISCONNECT" else "⟳ SCAN"
         }
     }
 
@@ -308,7 +303,7 @@ class MainActivity : AppCompatActivity() {
                     if (toRadioCharacteristic != null) {
                         runOnUiThread {
                             log("📻 Meshtastic service ready")
-                            sendButton.isEnabled = true
+                            broadcastButton.isEnabled = true
                         }
                     } else {
                         runOnUiThread { log("❌ ToRadio characteristic not found") }
@@ -332,17 +327,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateConnectionUI(connected: Boolean) {
         if (connected) {
-            connectionIndicator.setBackgroundResource(R.drawable.indicator_connected)
+            connectionDot.setBackgroundResource(R.drawable.indicator_connected)
             statusText.text = "MESH CONNECTED"
             statusText.setTextColor(ContextCompat.getColor(this, R.color.neon_green))
             scanButton.text = "DISCONNECT"
-            sendButton.isEnabled = true
+            broadcastButton.isEnabled = true
         } else {
-            connectionIndicator.setBackgroundResource(R.drawable.indicator_disconnected)
+            connectionDot.setBackgroundResource(R.drawable.indicator_disconnected)
             statusText.text = "OFFLINE"
             statusText.setTextColor(ContextCompat.getColor(this, R.color.neon_red))
-            scanButton.text = "CONNECT"
-            sendButton.isEnabled = false
+            scanButton.text = "⟳ SCAN"
+            broadcastButton.isEnabled = false
             toRadioCharacteristic = null
         }
     }
@@ -387,7 +382,7 @@ class MainActivity : AppCompatActivity() {
         progressBar.visibility = View.VISIBLE
         progressBar.max = totalChunks
         progressBar.progress = 0
-        sendButton.isEnabled = false
+        broadcastButton.isEnabled = false
 
         Thread {
             chunks.forEachIndexed { index, chunk ->
@@ -412,7 +407,7 @@ class MainActivity : AppCompatActivity() {
                 log("⚡ TX relayed to LoRa mesh!")
                 log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 progressBar.visibility = View.GONE
-                sendButton.isEnabled = true
+                broadcastButton.isEnabled = true
                 flashSuccess()
             }
         }.start()
@@ -444,19 +439,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildToRadioPacket(message: String): ByteArray {
-        // Simplified protobuf-like packet for TEXT_MESSAGE
-        // Field 1: packet (wire type 2 = length-delimited)
-        // Nested: to=0xFFFFFFFF (broadcast), decoded.portnum=1 (TEXT_MESSAGE), decoded.payload
-
         val payload = message.toByteArray(Charsets.UTF_8)
 
         // Build inner decoded message
         val decoded = ByteArrayOutputStream()
         // portnum = 1 (TEXT_MESSAGE_APP)
-        decoded.write(0x08) // Field 1, varint
-        decoded.write(0x01) // Value 1
+        decoded.write(0x08)
+        decoded.write(0x01)
         // payload
-        decoded.write(0x12) // Field 2, length-delimited
+        decoded.write(0x12)
         writeVarint(decoded, payload.size)
         decoded.write(payload)
 
@@ -465,10 +456,10 @@ class MainActivity : AppCompatActivity() {
         // Build MeshPacket
         val meshPacket = ByteArrayOutputStream()
         // to = broadcast (0xFFFFFFFF)
-        meshPacket.write(0x10) // Field 2, varint
+        meshPacket.write(0x10)
         writeVarint(meshPacket, 0xFFFFFFFF.toInt())
         // decoded (field 6)
-        meshPacket.write(0x32) // Field 6, length-delimited
+        meshPacket.write(0x32)
         writeVarint(meshPacket, decodedBytes.size)
         meshPacket.write(decodedBytes)
 
@@ -477,7 +468,7 @@ class MainActivity : AppCompatActivity() {
         // Build ToRadio
         val toRadio = ByteArrayOutputStream()
         // packet (field 1)
-        toRadio.write(0x0A) // Field 1, length-delimited
+        toRadio.write(0x0A)
         writeVarint(toRadio, meshPacketBytes.size)
         toRadio.write(meshPacketBytes)
 
@@ -500,7 +491,7 @@ class MainActivity : AppCompatActivity() {
         ValueAnimator.ofArgb(successColor, originalColor).apply {
             duration = 1500
             addUpdateListener { animator ->
-                sendButton.setBackgroundColor(animator.animatedValue as Int)
+                broadcastButton.setBackgroundColor(animator.animatedValue as Int)
             }
             start()
         }
@@ -510,8 +501,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
                 .format(java.util.Date())
-            logView.append("[$timestamp] $message\n")
-            scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
+            logText.append("[$timestamp] $message\n")
+            logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
         }
     }
 
@@ -519,7 +510,6 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         pulseAnimator1?.cancel()
         pulseAnimator2?.cancel()
-        glowAnimator?.cancel()
         disconnect()
     }
 }

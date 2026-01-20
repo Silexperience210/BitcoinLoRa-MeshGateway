@@ -9,4 +9,7 @@
     <color name="text_gray">#888899</color>
     <color name="green_success">#00ff88</color>
     <color name="red_error">#ff4444</color>
+    <color name="neon_green">#00FF88</color>
+    <color name="neon_red">#FF4444</color>
+    <color name="neon_orange">#FF6B00</color>
 </resources>
