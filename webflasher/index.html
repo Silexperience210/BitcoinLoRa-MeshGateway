@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitcoinMesh - Web Flasher</title>
+    <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a25 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            color: #ff6b00;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(255, 107, 0, 0.5);
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1.1em;
+        }
+        
+        .card {
+            background: rgba(26, 26, 37, 0.8);
+            border: 1px solid #ff6b00;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 0 30px rgba(255, 107, 0, 0.1);
+        }
+        
+        .card h2 {
+            color: #ff6b00;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .flash-section {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        esp-web-install-button {
+            --esp-tools-button-color: #ff6b00;
+            --esp-tools-button-text-color: #fff;
+        }
+        
+        esp-web-install-button::part(button) {
+            background: linear-gradient(135deg, #ff6b00 0%, #ff8c33 100%);
+            border: none;
+            padding: 20px 40px;
+            font-size: 1.3em;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 0 30px rgba(255, 107, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+        
+        esp-web-install-button::part(button):hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(255, 107, 0, 0.6);
+        }
+        
+        .steps {
+            list-style: none;
+            counter-reset: step;
+        }
+        
+        .steps li {
+            counter-increment: step;
+            padding: 15px 0;
+            padding-left: 50px;
+            position: relative;
+            border-bottom: 1px solid rgba(255, 107, 0, 0.2);
+        }
+        
+        .steps li:last-child {
+            border-bottom: none;
+        }
+        
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 35px;
+            height: 35px;
+            background: #ff6b00;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        
+        .warning-icon {
+            font-size: 1.5em;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .feature {
+            background: rgba(255, 107, 0, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .browser-support {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .browser {
+            text-align: center;
+            opacity: 0.7;
+        }
+        
+        .browser.supported {
+            opacity: 1;
+        }
+        
+        .browser-icon {
+            font-size: 2em;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 107, 0, 0.2);
+            color: #666;
+        }
+        
+        footer a {
+            color: #ff6b00;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .not-supported {
+            display: none;
+            background: #ff4444;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ BitcoinMesh Flasher</h1>
+            <p class="subtitle">Flash your T-Beam with Bitcoin Gateway firmware in one click</p>
+        </header>
+        
+        <div class="card">
+            <h2>📡 Flash T-Beam v1.2</h2>
+            <div class="flash-section">
+                <esp-web-install-button manifest="manifest.json">
+                    <button slot="activate">⚡ INSTALL FIRMWARE</button>
+                    <span slot="unsupported">
+                        <div class="not-supported" style="display: block;">
+                            ❌ Your browser doesn't support Web Serial.<br>
+                            Please use Chrome, Edge, or Opera on desktop.
+                        </div>
+                    </span>
+                </esp-web-install-button>
+                
+                <div class="warning">
+                    <span class="warning-icon">⚠️</span>
+                    <div>
+                        <strong>Before flashing:</strong><br>
+                        Connect your T-Beam via USB cable. Make sure no other application is using the serial port.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Instructions</h2>
+            <ol class="steps">
+                <li>Connect your <strong>LILYGO T-Beam v1.2</strong> to your computer via USB</li>
+                <li>Click the <strong>"INSTALL FIRMWARE"</strong> button above</li>
+                <li>Select the correct <strong>serial port</strong> (usually COM3 or /dev/ttyUSB0)</li>
+                <li>Wait for the flash to complete (~2 minutes)</li>
+                <li>Your T-Beam is now ready for BitcoinMesh! 🎉</li>
+            </ol>
+        </div>
+        
+        <div class="card">
+            <h2>✨ Firmware Features</h2>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">₿</div>
+                    <strong>BitcoinTxModule</strong>
+                    <p>Relay Bitcoin transactions</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📡</div>
+                    <strong>Meshtastic</strong>
+                    <p>LoRa mesh networking</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔒</div>
+                    <strong>Encrypted</strong>
+                    <p>Secure mesh communication</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📱</div>
+                    <strong>Bluetooth</strong>
+                    <p>Connect with Android app</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>🌐 Browser Support</h2>
+            <div class="browser-support">
+                <div class="browser supported">
+                    <div class="browser-icon">🌐</div>
+                    <div>Chrome ✅</div>
+                </div>
+                <div class="browser supported">
+                    <div class="browser-icon">🌐</div>
+                    <div>Edge ✅</div>
+                </div>
+                <div class="browser supported">
+                    <div class="browser-icon">🌐</div>
+                    <div>Opera ✅</div>
+                </div>
+                <div class="browser">
+                    <div class="browser-icon">🌐</div>
+                    <div>Firefox ❌</div>
+                </div>
+                <div class="browser">
+                    <div class="browser-icon">🌐</div>
+                    <div>Safari ❌</div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>
+                Created by <a href="https://github.com/Silexperience210">Silexperience</a> 
+                & <a href="https://github.com/ProfEduStream">@ProfEduStream</a>
+            </p>
+            <p style="margin-top: 10px;">
+                <a href="https://github.com/Silexperience210/BitcoinLoRa-MeshGateway">📦 GitHub Repository</a> |
+                <a href="https://github.com/Silexperience210/BitcoinLoRa-MeshGateway/releases">📱 Android App</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
