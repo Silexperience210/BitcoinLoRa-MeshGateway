@@ -473,73 +473,146 @@ class BitcoinMeshGateway:
             self.log(f"Erreur parsing mesh: {e}", "error")
     
     def handle_text_message(self, text, sender):
-        """Traite un message texte - vérifie si c'est une transaction Bitcoin (supporte multi-messages)"""
+        """Traite un message texte - supporte format BTX:n/total:data et hex brut"""
         text = text.strip()
-        
+
         # Ignorer les messages vides
         if len(text) < 5:
             return
-            
+
+        # ============================================
+        # FORMAT BTX:n/total:data (app Android)
+        # ============================================
+        if text.startswith("BTX:"):
+            self.handle_btx_chunk(text, sender)
+            return
+
+        # ============================================
+        # FORMAT HEX BRUT (legacy)
+        # ============================================
         # Nettoyer le texte (enlever espaces, 0x, etc.)
         clean_hex = text.replace(" ", "").replace("0x", "").replace("\n", "").replace("\r", "")
-        
+
         # Commande spéciale: "RESET" pour vider le buffer
         if text.upper() == "RESET":
             if sender in self.text_buffers:
                 del self.text_buffers[sender]
                 self.log(f"🗑️ Buffer vidé pour {sender}", "warning")
             return
-        
+
         # Vérifier que c'est bien du hex
         if not all(c in '0123456789abcdefABCDEF' for c in clean_hex):
             self.log(f"📨 Message texte de {sender}: {text[:50]}...", "info")
             return
-        
+
         # C'est du hex! Vérifier le timeout du buffer existant (60 secondes)
         if sender in self.text_buffers:
             buffer = self.text_buffers[sender]
             if time.time() - buffer["last_time"] > 60:
                 self.log(f"⏰ Buffer expiré pour {sender}, réinitialisation", "warning")
                 del self.text_buffers[sender]
-        
+
         # Créer ou récupérer le buffer
         if sender not in self.text_buffers:
             self.text_buffers[sender] = {"parts": [], "last_time": time.time(), "tx_start": clean_hex[:8]}
-        
+
         buffer = self.text_buffers[sender]
-        
+
         # Vérifier si c'est une nouvelle TX (commence différemment)
-        # Si le premier morceau commence par 01 ou 02 (version), c'est peut-être une nouvelle TX
         if len(buffer["parts"]) > 0 and (clean_hex.startswith('01000000') or clean_hex.startswith('02000000')):
             self.log(f"🔄 Nouvelle TX détectée pour {sender}, réinitialisation du buffer", "warning")
             buffer["parts"] = []
             buffer["tx_start"] = clean_hex[:8]
-        
+
         buffer["parts"].append(clean_hex)
         buffer["last_time"] = time.time()
-        
+
         # Assembler toutes les parties
         full_hex = "".join(buffer["parts"])
-        
+
         self.log(f"📦 Partie {len(buffer['parts'])} reçue de {sender} ({len(clean_hex)} chars)", "info")
         self.log(f"   Total accumulé: {len(full_hex)} chars ({len(full_hex)//2} octets)", "info")
-        
+
         # Vérifier si c'est une transaction Bitcoin complète
-        # Une TX commence par version (01 ou 02) et doit avoir une longueur paire
         if len(full_hex) >= 120 and len(full_hex) % 2 == 0:
             if full_hex.startswith('01') or full_hex.startswith('02'):
-                # Essayer de valider la structure
                 if self.looks_like_complete_tx(full_hex):
                     self.log(f"✅ TX Bitcoin complète détectée! ({len(buffer['parts'])} parties)", "success")
-                    
+
                     # Vider le buffer
                     del self.text_buffers[sender]
-                    
+
                     # Broadcaster
                     self.broadcast_text_transaction(full_hex, sender)
                 else:
                     self.log(f"   ⏳ En attente de plus de données...", "warning")
-    
+
+    def handle_btx_chunk(self, text, sender):
+        """Traite un message au format BTX:n/total:data"""
+        try:
+            # Parser BTX:n/total:data
+            parts = text.split(":", 3)
+            if len(parts) < 4:
+                self.log(f"❌ Format BTX invalide: {text[:30]}...", "error")
+                return
+
+            chunk_info = parts[1].split("/")
+            if len(chunk_info) != 2:
+                self.log(f"❌ Format chunk invalide: {parts[1]}", "error")
+                return
+
+            chunk_num = int(chunk_info[0])
+            total_chunks = int(chunk_info[1])
+            chunk_data = parts[2] + (":" + parts[3] if len(parts) > 3 else "")
+
+            self.log(f"📦 BTX chunk {chunk_num}/{total_chunks} de {sender} ({len(chunk_data)} chars)", "info")
+
+            # Créer un buffer spécifique pour les chunks BTX
+            btx_key = f"btx_{sender}"
+            
+            if btx_key not in self.text_buffers:
+                self.text_buffers[btx_key] = {
+                    "chunks": {},
+                    "total": total_chunks,
+                    "last_time": time.time()
+                }
+            
+            buffer = self.text_buffers[btx_key]
+            
+            # Reset si nouveau total (nouvelle TX)
+            if buffer["total"] != total_chunks:
+                self.log(f"🔄 Nouvelle TX BTX détectée, reset buffer", "warning")
+                buffer = {"chunks": {}, "total": total_chunks, "last_time": time.time()}
+                self.text_buffers[btx_key] = buffer
+
+            buffer["chunks"][chunk_num] = chunk_data
+            buffer["last_time"] = time.time()
+
+            received = len(buffer["chunks"])
+            self.log(f"   📊 Reçu: {received}/{total_chunks} chunks", "info")
+
+            # Vérifier si on a tous les chunks
+            if received == total_chunks:
+                # Assembler dans l'ordre
+                full_hex = ""
+                for i in range(1, total_chunks + 1):
+                    if i in buffer["chunks"]:
+                        full_hex += buffer["chunks"][i]
+                    else:
+                        self.log(f"❌ Chunk {i} manquant!", "error")
+                        return
+
+                self.log(f"✅ TX BTX complète! {len(full_hex)} chars ({len(full_hex)//2} bytes)", "success")
+
+                # Nettoyer
+                del self.text_buffers[btx_key]
+
+                # Broadcaster
+                self.broadcast_text_transaction(full_hex, sender)
+
+        except Exception as e:
+            self.log(f"❌ Erreur parsing BTX: {e}", "error")
+
     def looks_like_complete_tx(self, tx_hex):
         """Vérifie basiquement si la TX semble complète"""
         try:
@@ -929,3 +1002,4 @@ if __name__ == "__main__":
     app = BitcoinMeshGateway(root)
     root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
+
