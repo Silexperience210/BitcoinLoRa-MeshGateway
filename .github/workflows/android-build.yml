@@ -18,14 +18,15 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Setup Gradle
+    - name: Setup Gradle 8.4
       uses: gradle/actions/setup-gradle@v3
       with:
+        gradle-version: '8.4'
         cache-disabled: true
       
     - name: Build APK
       working-directory: ./android
-      run: gradle assembleDebug
+      run: gradle assembleDebug --no-daemon
         
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
@@ -69,18 +70,10 @@ jobs:
           - ⚡ Direct Bluetooth connection to T-Beam
           - 📦 Auto-chunking (190 chars per chunk)
           - 📊 Real-time progress tracking
-          - 🔄 3-second delay between chunks
           
           ### 📋 Requirements
           - Android 8.0+ (API 26)
-          - T-Beam with Meshtastic + BitcoinTxModule firmware
-          
-          ### 🚀 Usage
-          1. Pair T-Beam in Android Bluetooth settings
-          2. Open BitcoinMesh app
-          3. Select T-Beam from dropdown
-          4. Paste your signed Bitcoin transaction (hex)
-          5. Tap ⚡ ENVOYER
+          - T-Beam with Meshtastic firmware
           
           ---
           **By [Silexperience](https://github.com/Silexperience210) & [@ProfEduStream](https://github.com/ProfEduStream)** 🎓
