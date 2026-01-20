@@ -553,10 +553,10 @@ class BitcoinMeshGateway:
         # Ajouter à l'historique
         tree_id = self.tx_tree.insert("", 0, values=(
             time.strftime("%H:%M:%S"),
-            f"TXT",
+            f"TXT ({sender[:6]})",
             f"{len(tx_hex)//2}B",
-            sender[:8] + "...",
-            "⏳ Broadcast..."
+            "⏳ Broadcast...",
+            ""
         ))
         
         # Broadcast en arrière-plan
@@ -571,11 +571,17 @@ class BitcoinMeshGateway:
                     btc_txid = self._broadcast_api(tx_hex, api_config)
                 
                 self.log(f"🚀 TX broadcastée! TXID: {btc_txid}", "success")
-                self.root.after(0, lambda: self.tx_tree.set(tree_id, "status", f"✅ {btc_txid[:16]}..."))
+                self.root.after(0, lambda tid=tree_id, txid=btc_txid: (
+                    self.tx_tree.set(tid, "status", "✅ Broadcastée"),
+                    self.tx_tree.set(tid, "btc_txid", txid)
+                ))
                 
             except Exception as e:
                 self.log(f"❌ Échec broadcast: {e}", "error")
-                self.root.after(0, lambda: self.tx_tree.set(tree_id, "status", f"❌ {str(e)[:30]}"))
+                self.root.after(0, lambda tid=tree_id, err=str(e): (
+                    self.tx_tree.set(tid, "status", "❌ Échec"),
+                    self.tx_tree.set(tid, "btc_txid", err[:40])
+                ))
             
             self.update_stats()
         
