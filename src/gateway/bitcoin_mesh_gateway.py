@@ -717,15 +717,100 @@ class BitcoinMeshGateway:
             raise Exception(f"HTTP {r.status_code}: {error_text[:100]}")
     
     def _calculate_txid(self, tx_hex):
-        """Calcule le TXID à partir du hex de la transaction"""
+        """Calcule le TXID à partir du hex de la transaction (supporte SegWit)"""
         import hashlib
         tx_bytes = bytes.fromhex(tx_hex)
+        
+        # Vérifier si c'est une transaction SegWit (marker 0x00, flag 0x01 après version)
+        if len(tx_bytes) > 6 and tx_bytes[4] == 0x00 and tx_bytes[5] == 0x01:
+            # C'est une SegWit transaction - il faut sérialiser sans witness pour le TXID
+            try:
+                tx_for_txid = self._strip_witness(tx_bytes)
+            except:
+                tx_for_txid = tx_bytes  # Fallback
+        else:
+            # Transaction legacy
+            tx_for_txid = tx_bytes
+        
         # Double SHA256
-        hash1 = hashlib.sha256(tx_bytes).digest()
+        hash1 = hashlib.sha256(tx_for_txid).digest()
         hash2 = hashlib.sha256(hash1).digest()
         # Inverser (little-endian -> big-endian pour affichage)
         txid = hash2[::-1].hex()
         return txid
+    
+    def _strip_witness(self, tx_bytes):
+        """Enlève les données witness d'une transaction SegWit pour calculer le TXID"""
+        import struct
+        
+        # Version (4 bytes)
+        version = tx_bytes[0:4]
+        
+        # Skip marker (0x00) et flag (0x01)
+        pos = 6
+        
+        # Lire le nombre d'inputs (varint)
+        input_count, varint_size = self._read_varint(tx_bytes, pos)
+        pos += varint_size
+        
+        inputs = []
+        for _ in range(input_count):
+            # txid (32) + vout (4) + script_len (varint) + script + sequence (4)
+            input_start = pos
+            pos += 36  # txid + vout
+            script_len, vs = self._read_varint(tx_bytes, pos)
+            pos += vs + script_len + 4  # script + sequence
+            inputs.append(tx_bytes[input_start:pos])
+        
+        # Lire le nombre d'outputs (varint)
+        output_count, varint_size = self._read_varint(tx_bytes, pos)
+        pos += varint_size
+        
+        outputs = []
+        for _ in range(output_count):
+            output_start = pos
+            pos += 8  # amount
+            script_len, vs = self._read_varint(tx_bytes, pos)
+            pos += vs + script_len
+            outputs.append(tx_bytes[output_start:pos])
+        
+        # Skip witness data - on va directement au locktime (4 derniers bytes)
+        locktime = tx_bytes[-4:]
+        
+        # Reconstruire la TX sans witness
+        result = version
+        result += self._encode_varint(input_count)
+        for inp in inputs:
+            result += inp
+        result += self._encode_varint(output_count)
+        for out in outputs:
+            result += out
+        result += locktime
+        
+        return result
+    
+    def _read_varint(self, data, pos):
+        """Lit un varint Bitcoin et retourne (valeur, taille)"""
+        first = data[pos]
+        if first < 0xfd:
+            return first, 1
+        elif first == 0xfd:
+            return int.from_bytes(data[pos+1:pos+3], 'little'), 3
+        elif first == 0xfe:
+            return int.from_bytes(data[pos+1:pos+5], 'little'), 5
+        else:
+            return int.from_bytes(data[pos+1:pos+9], 'little'), 9
+    
+    def _encode_varint(self, n):
+        """Encode un entier en varint Bitcoin"""
+        if n < 0xfd:
+            return bytes([n])
+        elif n <= 0xffff:
+            return bytes([0xfd]) + n.to_bytes(2, 'little')
+        elif n <= 0xffffffff:
+            return bytes([0xfe]) + n.to_bytes(4, 'little')
+        else:
+            return bytes([0xff]) + n.to_bytes(8, 'little')
             
     def _broadcast_rpc(self, tx_hex, api_config):
         """Broadcast via Bitcoin Core RPC"""
