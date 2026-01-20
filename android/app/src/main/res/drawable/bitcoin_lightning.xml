@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Outer glow circle -->
+    <path
+        android:pathData="M50,5 A45,45 0 1,1 50,95 A45,45 0 1,1 50,5"
+        android:strokeWidth="1"
+        android:strokeColor="#40FF6B00"
+        android:fillColor="#10FF6B00" />
+    <!-- Bitcoin B -->
+    <path
+        android:pathData="M40,25 L40,75 L55,75 C68,75 75,68 75,58 C75,52 72,47 67,45 C70,43 73,39 73,33 C73,25 67,25 55,25 L40,25 Z M48,32 L54,32 C60,32 64,34 64,40 C64,46 60,48 54,48 L48,48 L48,32 Z M48,55 L56,55 C63,55 67,57 67,64 C67,70 63,72 56,72 L48,72 L48,55 Z"
+        android:fillColor="#FF6B00" />
+    <!-- Lightning bolt overlay -->
+    <path
+        android:pathData="M55,15 L35,50 L48,50 L42,85 L70,45 L55,45 L62,15 Z"
+        android:fillColor="#FFAA00"
+        android:fillAlpha="0.3" />
+</vector>

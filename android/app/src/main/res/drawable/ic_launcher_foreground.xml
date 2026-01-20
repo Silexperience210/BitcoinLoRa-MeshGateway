@@ -1,53 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     
-    <!-- Bitcoin B symbol with LoRa waves - Orange Neon -->
+    <!-- Background glow -->
     <path
-        android:fillColor="#FF6B00"
-        android:pathData="M54,24 L54,84 M42,54 L66,54"
-        android:strokeWidth="4"
-        android:strokeColor="#FF6B00"/>
+        android:pathData="M54,10 A44,44 0 1,1 54,98 A44,44 0 1,1 54,10"
+        android:fillColor="#30FF6B00" />
     
-    <!-- Bitcoin B -->
+    <!-- Inner circle -->
     <path
-        android:fillColor="#FF6B00"
-        android:pathData="M45,30 L45,78 L58,78 C68,78 72,72 72,66 C72,60 68,56 62,55 C67,54 70,50 70,44 C70,36 65,30 55,30 L45,30 Z M52,38 L55,38 C59,38 62,40 62,44 C62,48 59,50 55,50 L52,50 L52,38 Z M52,56 L57,56 C62,56 65,59 65,64 C65,69 62,72 57,72 L52,72 L52,56 Z"/>
+        android:pathData="M54,18 A36,36 0 1,1 54,90 A36,36 0 1,1 54,18"
+        android:fillColor="#0A0A15" />
     
-    <!-- LoRa waves right -->
+    <!-- Bitcoin B stylized -->
     <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FF6B00"
-        android:strokeWidth="2"
-        android:pathData="M76,44 Q82,54 76,64"/>
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FF8C33"
-        android:strokeWidth="2"
-        android:pathData="M82,38 Q92,54 82,70"/>
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFAD66"
-        android:strokeWidth="2"
-        android:pathData="M88,32 Q102,54 88,76"/>
+        android:pathData="M44,30 L44,78 L58,78 C70,78 76,72 76,63 C76,57 73,53 69,51 C72,49 74,45 74,40 C74,32 69,30 58,30 L44,30 Z"
+        android:fillColor="#FF6B00" />
     
-    <!-- LoRa waves left -->
     <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FF6B00"
-        android:strokeWidth="2"
-        android:pathData="M32,44 Q26,54 32,64"/>
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FF8C33"
-        android:strokeWidth="2"
-        android:pathData="M26,38 Q16,54 26,70"/>
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFAD66"
-        android:strokeWidth="2"
-        android:pathData="M20,32 Q6,54 20,76"/>
+        android:pathData="M50,36 L56,36 C61,36 64,38 64,43 C64,48 61,50 56,50 L50,50 L50,36 Z"
+        android:fillColor="#0A0A15" />
     
+    <path
+        android:pathData="M50,56 L58,56 C64,56 68,58 68,64 C68,70 64,72 58,72 L50,72 L50,56 Z"
+        android:fillColor="#0A0A15" />
+    
+    <!-- Lightning bolt -->
+    <path
+        android:pathData="M62,24 L48,50 L56,50 L52,84 L72,50 L62,50 L68,24 Z"
+        android:fillColor="#FFCC00"
+        android:fillAlpha="0.8" />
+    
+    <!-- Mesh waves -->
+    <path
+        android:pathData="M24,54 Q34,44 44,54"
+        android:strokeWidth="2"
+        android:strokeColor="#40FF6B00"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M18,54 Q34,38 50,54"
+        android:strokeWidth="1.5"
+        android:strokeColor="#30FF6B00"
+        android:fillColor="#00000000" />
+    
+    <path
+        android:pathData="M64,54 Q74,44 84,54"
+        android:strokeWidth="2"
+        android:strokeColor="#40FF6B00"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M58,54 Q74,38 90,54"
+        android:strokeWidth="1.5"
+        android:strokeColor="#30FF6B00"
+        android:fillColor="#00000000" />
 </vector>
