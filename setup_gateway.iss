@@ -19,7 +19,7 @@ DefaultDirName={autopf}\BitcoinMeshGateway
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=installer_output
-OutputBaseFilename=BitcoinMeshGateway_Setup
+OutputBaseFilename=BitcoinMeshGateway_Setup_v2
 SetupIconFile=bitcoin_icon.ico
 Compression=lzma
 SolidCompression=yes
@@ -47,8 +47,8 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 Name: "{commonstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: startupicon
 
 [Run]
-Filename: "{app}\install.bat"; Description: "Installer Python et les dependances"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\install.bat"; Description: "Installer Python et les dependances"; Flags: shellexec waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
 function InitializeSetup(): Boolean;

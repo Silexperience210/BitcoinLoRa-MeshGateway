@@ -118,7 +118,7 @@ Bitcoin requires Internet connectivity to broadcast transactions. In many scenar
 - LILYGO T-Beam v1.2
 - USB data cable
 
-### Quick Start
+### Quick Start (Manual)
 
 ```bash
 # Clone repository
@@ -130,6 +130,25 @@ pip install -r requirements.txt
 
 # Flash Meshtastic firmware to T-Beam
 # (See Meshtastic documentation)
+```
+
+### Windows Installer (Recommended)
+
+For Windows users, we provide an **automatic installer** that handles everything:
+
+📦 **[Download BitcoinMeshGateway_Setup.exe](https://github.com/Silexperience210/BitcoinLoRa-MeshGateway/releases/latest)**
+
+**The installer will automatically:**
+- ✅ Install Python 3.12 (if not present)
+- ✅ Install all required dependencies (meshtastic, requests, pyserial, pysocks)
+- ✅ Create desktop shortcut (optional)
+- ✅ Add to Windows startup (optional)
+
+**Manual Windows install:**
+```powershell
+# If you prefer manual installation
+pip install meshtastic pypubsub requests pyserial pysocks
+python bitcoin_mesh_gateway.py
 ```
 
 ### Firmware
