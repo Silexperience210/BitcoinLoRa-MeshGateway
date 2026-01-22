@@ -136,7 +136,7 @@ pip install -r requirements.txt
 
 For Windows users, we provide an **automatic installer** that handles everything:
 
-📦 **[Download BitcoinMeshGateway_Setup.exe](https://github.com/Silexperience210/BitcoinLoRa-MeshGateway/releases/latest)**
+📦 **[Download BitcoinMeshGateway_Setup.exe](https://github.com/Silexperience210/BitcoinLoRa-MeshGateway/raw/main/installer_output/BitcoinMeshGateway_Setup_v2.exe)**
 
 **The installer will automatically:**
 - ✅ Install Python 3.12 (if not present)
