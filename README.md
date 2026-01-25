@@ -202,7 +202,7 @@ cd android
 ### Desktop Client
 
 ```bash
-python src/client/bitcoin_mesh_client.py
+python src/client/bitcoin_mesh_gui.py
 ```
 
 ### Gateway Server
